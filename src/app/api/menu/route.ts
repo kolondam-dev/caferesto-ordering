@@ -6,7 +6,12 @@ import { ADMIN_ROLES } from "@/lib/constants";
 export async function GET() {
   const categories = await db.menuCategory.findMany({
     orderBy: { sort: "asc" },
-    include: { items: { orderBy: { name: "asc" } } },
+    include: {
+      items: {
+        orderBy: { name: "asc" },
+        include: { photos: { orderBy: [{ isPrimary: "desc" }, { sort: "asc" }] } },
+      },
+    },
   });
   return NextResponse.json({ categories });
 }
@@ -27,6 +32,7 @@ export async function POST(req: NextRequest) {
       price: Number(body.price),
       categoryId: body.categoryId,
       available: body.available ?? true,
+      prepMinutes: body.prepMinutes ? Number(body.prepMinutes) : null,
     },
   });
   return NextResponse.json({ item });

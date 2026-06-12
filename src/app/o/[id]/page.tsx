@@ -7,6 +7,7 @@ import {
 } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import { Badge, Button, Card, Money, Spinner } from "@/components/ui";
+import MenuImage from "@/components/MenuImage";
 import { formatIDR } from "@/lib/constants";
 
 type Participant = { id: string; name: string; isHost: boolean };
@@ -26,7 +27,11 @@ type OrderData = {
   shares: Share[] | null;
   me: { participantId: string; isHost: boolean } | null;
 };
-type MenuItemT = { id: string; name: string; price: number; available: boolean; description?: string };
+type MenuItemT = {
+  id: string; name: string; price: number; available: boolean; description?: string;
+  prepMinutes?: number | null;
+  photos?: { url: string; isPrimary: boolean }[];
+};
 type Category = { id: string; name: string; items: MenuItemT[] };
 
 /** Halaman order kolaboratif Scan & Serve — draft bersama → bayar → validasi → dapur. */
@@ -489,15 +494,23 @@ function MenuSheet({ orderId, onClose, onAdded }: { orderId: string; onClose: ()
                 <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-ink/40">{c.name}</p>
                 <div className="space-y-1.5">
                   {c.items.filter((i) => i.available).map((i) => (
-                    <div key={i.id} className="flex items-center justify-between gap-3 rounded-xl border border-sunset-100 p-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold">{i.name}</p>
-                        {i.description && <p className="line-clamp-1 text-xs text-ink/45">{i.description}</p>}
-                        <Money value={i.price} className="text-xs font-bold text-sunset-600" />
+                    <div key={i.id} className="flex items-stretch gap-0 overflow-hidden rounded-xl border border-sunset-100">
+                      <div className="w-16 shrink-0">
+                        <MenuImage photos={i.photos} alt={i.name} />
                       </div>
-                      <Button disabled={busyId === i.id} onClick={() => add(i)} className="!px-3 shrink-0">
-                        <Plus size={15} weight="bold" />
-                      </Button>
+                      <div className="flex min-w-0 flex-1 items-center justify-between gap-3 p-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold">{i.name}</p>
+                          {i.description && <p className="line-clamp-1 text-xs text-ink/45">{i.description}</p>}
+                          <p className="flex items-center gap-1.5">
+                            <Money value={i.price} className="text-xs font-bold text-sunset-600" />
+                            {i.prepMinutes ? <span className="text-[10px] font-semibold text-teal-700">±{i.prepMinutes} mnt</span> : null}
+                          </p>
+                        </div>
+                        <Button disabled={busyId === i.id} onClick={() => add(i)} className="!px-3 shrink-0">
+                          <Plus size={15} weight="bold" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>

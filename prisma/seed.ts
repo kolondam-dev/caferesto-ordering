@@ -84,6 +84,15 @@ async function main() {
     }
   }
 
+  // Estimasi pembuatan default per kategori
+  const prep: Record<string, number> = { Coffee: 5, "Non-Coffee": 7, "Main Course": 15, Snacks: 10 };
+  for (const [catName, minutes] of Object.entries(prep)) {
+    await db.menuItem.updateMany({
+      where: { category: { name: catName }, prepMinutes: null },
+      data: { prepMinutes: minutes },
+    });
+  }
+
   // PRO: chart of accounts sederhana
   const accounts: [string, string, string][] = [
     ["1000", "Kas", "ASSET"],
