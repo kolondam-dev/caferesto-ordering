@@ -6,6 +6,7 @@ import { CoffeeBean, Gift, HandWaving, Users } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import { Button, Card, Input, Spinner } from "@/components/ui";
 import ConnectionBanner from "@/components/ConnectionBanner";
+import Turnstile, { TURNSTILE_ENABLED } from "@/components/Turnstile";
 
 type Resolve = {
   table: { id: string; name: string; capacity: number };
@@ -26,6 +27,7 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
   const [error, setError] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [tsToken, setTsToken] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
     try {
       const res = await api<{ orderId: string }>("/api/qr/join", {
         method: "POST",
-        body: { code, name: name.trim(), phone: phone.trim() || undefined },
+        body: { code, name: name.trim(), phone: phone.trim() || undefined, turnstileToken: tsToken || undefined },
       });
       router.replace(`/o/${res.orderId}`);
     } catch (err) {
@@ -141,8 +143,9 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
                 <Input value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} placeholder="08xxxxxxxxxx" />
                 <p className="mt-1 text-[11px] text-ink/40">Struk digital Anda dikirim ke sini jika berminat.</p>
               </div>
+              <Turnstile onToken={setTsToken} />
               {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
-              <Button type="submit" variant="teal" full disabled={busy || !name.trim()} className="!py-3 text-base">
+              <Button type="submit" variant="teal" full disabled={busy || !name.trim() || (TURNSTILE_ENABLED && !tsToken)} className="!py-3 text-base">
                 <CoffeeBean size={20} weight="fill" />
                 {busy ? "Sebentar ya…" : firstJoin ? "Mulai Pesan" : "Gabung & Pilih Menu"}
               </Button>

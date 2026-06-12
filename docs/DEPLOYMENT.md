@@ -64,8 +64,15 @@ setiap 1–5 menit.
   print-bridge lokal (roadmap).
 - **`JWT_SECRET` production wajib baru & rahasia** — yang lama di repo hanya untuk dev.
 - Webhook Midtrans kelak diarahkan ke `https://resto.domain-anda.com/api/payments/webhook`.
-- Cloudflare Turnstile (anti-bot form publik) menyusul di PR berikutnya:
-  butuh env `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY`.
+
+## 6. Cloudflare Turnstile (anti-bot)
+
+1. Dashboard Cloudflare → **Turnstile** → **Add widget** → domain: `resto.domain-anda.com`,
+   mode **Managed** (tantangan hanya muncul bila trafik mencurigakan — tanpa friksi untuk tamu normal).
+2. Catat **Site Key** → env `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, dan **Secret Key** → `TURNSTILE_SECRET_KEY` (di Vercel).
+3. Widget otomatis tampil di form scan QR, login, dan register; server memverifikasi
+   token ke `siteverify`. **Kedua env kosong = fitur nonaktif** (dev/CI tetap jalan tanpa Turnstile).
+   Klaim identitas peserta lama dilewatkan (bukan vektor abuse).
 
 ## Checklist go-live
 

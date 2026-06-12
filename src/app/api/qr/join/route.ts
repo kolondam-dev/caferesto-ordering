@@ -6,6 +6,7 @@ import { getGuestId, newGuestId, signGuestToken, GUEST_COOKIE } from "@/lib/gues
 import { getSettings } from "@/lib/settings";
 import { shortCode } from "@/lib/code";
 import { ORDER_STATUS } from "@/lib/constants";
+import { verifyTurnstile, TURNSTILE_ERROR } from "@/lib/turnstile";
 
 const schema = z.union([
   // Join baru: isi nama (+ HP opsional)
@@ -20,7 +21,11 @@ const schema = z.union([
  * Tanpa login: identitas guest disimpan di cookie (JWT).
  */
 async function handlePost(req: NextRequest) {
-  const parsed = schema.safeParse(await req.json().catch(() => ({})));
+  const raw = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  // Anti-bot hanya untuk join baru; klaim identitas (peserta sudah ada) dilewatkan
+  if (!("claimParticipantId" in raw) && !(await verifyTurnstile(raw.turnstileToken as string | undefined)))
+    return NextResponse.json({ error: TURNSTILE_ERROR }, { status: 403 });
+  const parsed = schema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
 
   const table = await db.table.findUnique({ where: { code: parsed.data.code } });

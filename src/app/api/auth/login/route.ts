@@ -3,9 +3,16 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { signToken, AUTH_COOKIE } from "@/lib/auth";
 import type { Role } from "@/lib/constants";
+import { verifyTurnstile, TURNSTILE_ERROR } from "@/lib/turnstile";
 
 export async function POST(req: NextRequest) {
-  const { email, password } = (await req.json()) as { email?: string; password?: string };
+  const { email, password, turnstileToken } = (await req.json()) as {
+    email?: string;
+    password?: string;
+    turnstileToken?: string;
+  };
+  if (!(await verifyTurnstile(turnstileToken)))
+    return NextResponse.json({ error: TURNSTILE_ERROR }, { status: 403 });
   if (!email || !password)
     return NextResponse.json({ error: "Email & password wajib diisi" }, { status: 400 });
 

@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/client";
 import { Button, Card, Input, Label } from "@/components/ui";
+import Turnstile, { TURNSTILE_ENABLED } from "@/components/Turnstile";
 
 function RegisterForm() {
   const router = useRouter();
   const params = useSearchParams();
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
+  const [tsToken, setTsToken] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -18,7 +20,7 @@ function RegisterForm() {
     setError("");
     setLoading(true);
     try {
-      await api("/api/auth/register", { method: "POST", body: form });
+      await api("/api/auth/register", { method: "POST", body: { ...form, turnstileToken: tsToken || undefined } });
       router.push(params.get("next") ?? "/");
       router.refresh();
     } catch (err) {
@@ -54,8 +56,9 @@ function RegisterForm() {
           <Label>Password</Label>
           <Input type="password" value={form.password} onChange={set("password")} required minLength={6} placeholder="Minimal 6 karakter" />
         </div>
+        <Turnstile onToken={setTsToken} />
         {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
-        <Button type="submit" variant="teal" full disabled={loading}>
+        <Button type="submit" variant="teal" full disabled={loading || (TURNSTILE_ENABLED && !tsToken)}>
           {loading ? "Memproses…" : "Daftar Gratis"}
         </Button>
       </form>
