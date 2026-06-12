@@ -15,6 +15,8 @@ type Settings = {
   serviceFeeType: "PERCENT" | "FLAT";
   serviceFeeValue: number;
   draftTtlMinutes: number;
+  printerHost: string;
+  printerPort: number;
 };
 
 export default function SettingsPage() {
@@ -43,7 +45,9 @@ export default function SettingsPage() {
 
   if (!settings) return <Spinner />;
   const set = (k: keyof Settings) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setSettings((s) => s && { ...s, [k]: k === "cafeName" ? e.target.value : Number(e.target.value) });
+    setSettings(
+      (s) => s && { ...s, [k]: k === "cafeName" || k === "printerHost" ? e.target.value : Number(e.target.value) }
+    );
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -125,6 +129,24 @@ export default function SettingsPage() {
             )}
             <p className="mt-2 text-[11px] text-ink/40">
               Service fee disnapshot ke setiap order baru — order berjalan tidak berubah.
+            </p>
+          </div>
+
+          <div className="border-t border-sunset-100 pt-4">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-ink/40">Printer Struk (Thermal)</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label>IP / Host printer (kosong = nonaktif)</Label>
+                <Input value={settings.printerHost} onChange={set("printerHost")} placeholder="cth. 192.168.1.50" />
+              </div>
+              <div>
+                <Label>Port</Label>
+                <Input type="number" min={1} value={settings.printerPort} onChange={set("printerPort")} />
+              </div>
+            </div>
+            <p className="mt-2 text-[11px] text-ink/40">
+              Thermal printer jaringan ESC/POS (Epson-compatible), umumnya port RAW 9100. Tombol "Cetak Thermal"
+              muncul di POS bila host terisi.
             </p>
           </div>
           <Button type="submit">{saved ? "Tersimpan ✓" : "Simpan Pengaturan"}</Button>

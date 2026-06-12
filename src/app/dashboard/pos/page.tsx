@@ -1,9 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Money as MoneyIcon, Plus, SealCheck, WarningCircle } from "@phosphor-icons/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  MagnifyingGlass, Money as MoneyIcon, PicnicTable, Plus, Printer, Rectangle,
+  Receipt as ReceiptIcon, SealCheck, WarningCircle,
+} from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import { Badge, Button, Card, Money, PageTitle, Spinner } from "@/components/ui";
+import MenuImage from "@/components/MenuImage";
+
+const TableIcon = PicnicTable ?? Rectangle; // fallback bila ikon meja tak tersedia
 
 type ValOrder = {
   id: string; code: string; splitMode: string | null;
@@ -150,7 +156,10 @@ function ValidationQueue({ onChanged }: { onChanged: () => void }) {
 }
 
 type TableT = { id: string; name: string; capacity: number; status: string; orders: { id: string }[] };
-type MenuItem = { id: string; name: string; price: number; available: boolean };
+type MenuItem = {
+  id: string; name: string; price: number; available: boolean;
+  photos?: { url: string; isPrimary: boolean }[];
+};
 type Category = { id: string; name: string; items: MenuItem[] };
 type OrderData = {
   order: {
@@ -161,12 +170,18 @@ type OrderData = {
   bill: { subtotal: number; serviceFee: number; tax: number; total: number; settled: number; deposit: number; due: number };
 };
 
-/** POS kasir: pilih meja → tambah item → bayar cash / gateway. */
+/**
+ * POS kasir — layout: strip meja horizontal di atas, lalu kolom menu (70%,
+ * dengan chips kategori + pencarian) dan kolom kalkulasi order (30%).
+ */
 export default function POSPage() {
   const [tables, setTables] = useState<TableT[] | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [current, setCurrent] = useState<OrderData | null>(null);
   const [preview, setPreview] = useState<TableT | null>(null);
+  const [activeCat, setActiveCat] = useState("all");
+  const [search, setSearch] = useState("");
+  const [printerReady, setPrinterReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -181,10 +196,20 @@ export default function POSPage() {
   useEffect(() => {
     loadTables();
     api<{ categories: Category[] }>("/api/menu").then((d) => setCategories(d.categories));
+    api<{ settings: { printerHost: string } }>("/api/settings")
+      .then((d) => setPrinterReady(!!d.settings.printerHost))
+      .catch(() => {});
   }, [loadTables]);
 
-  // Klik meja hanya membuka pratinjau — order baru dibuat lewat tombol eksplisit,
-  // mencegah order tak sengaja saat berpindah-pindah meja.
+  const visibleItems = useMemo(() => {
+    const cats = activeCat === "all" ? categories : categories.filter((c) => c.id === activeCat);
+    const q = search.trim().toLowerCase();
+    return cats.flatMap((c) =>
+      c.items.filter((i) => i.available && (!q || i.name.toLowerCase().includes(q)))
+    );
+  }, [categories, activeCat, search]);
+
+  // Klik meja hanya membuka pratinjau — order baru dibuat lewat tombol eksplisit.
   function selectTable(t: TableT) {
     setMsg("");
     setPreview(t);
@@ -216,6 +241,7 @@ export default function POSPage() {
     setBusy(true);
     try {
       const { order } = await api<{ order: { id: string } }>("/api/orders", { method: "POST", body: { type: "TAKEAWAY" } });
+      setPreview(null);
       await loadOrder(order.id);
     } finally {
       setBusy(false);
@@ -223,7 +249,7 @@ export default function POSPage() {
   }
 
   async function addItem(item: MenuItem) {
-    if (!current) return;
+    if (!current || current.order.status !== "OPEN") return;
     await api(`/api/orders/${current.order.id}/items`, { method: "POST", body: { items: [{ menuItemId: item.id, qty: 1 }] } });
     loadOrder(current.order.id);
   }
@@ -251,68 +277,108 @@ export default function POSPage() {
     loadTables();
   }
 
+  async function printThermal() {
+    if (!current) return;
+    setBusy(true);
+    try {
+      await api("/api/print/receipt", { method: "POST", body: { orderId: current.order.id } });
+      setMsg("Struk terkirim ke printer 🖨");
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!tables) return <Spinner />;
+
+  const TONE: Record<string, string> = {
+    OPEN: "border-teal-200 bg-white text-teal-700",
+    BOOKED: "border-gold-300 bg-gold-50 text-gold-800",
+    OCCUPIED: "border-sunset-300 bg-sunset-50 text-sunset-800",
+  };
 
   return (
     <div className="mx-auto max-w-7xl">
-      <PageTitle title="POS Kasir" subtitle="Kelola order dine-in & takeaway" action={<Button variant="gold" onClick={openTakeaway} disabled={busy}><Plus size={16} /> Takeaway</Button>} />
+      <PageTitle title="POS Kasir" subtitle="Kelola order dine-in & takeaway" action={<Button variant="teal" onClick={openTakeaway} disabled={busy}><Plus size={16} /> Takeaway</Button>} />
       <ValidationQueue onChanged={loadTables} />
       <AttentionQueue />
 
-      <div className="grid gap-4 lg:grid-cols-[280px_1fr_340px]">
-        {/* Meja */}
+      {/* Strip meja horizontal */}
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+        {tables.map((t) => {
+          const active = preview?.id === t.id || current?.order.table?.name === t.name;
+          return (
+            <button
+              key={t.id}
+              onClick={() => selectTable(t)}
+              className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 transition-colors ${
+                active ? "border-teal-600 bg-teal-600 text-white" : TONE[t.status] ?? "border-sunset-100 bg-white"
+              }`}
+            >
+              <TableIcon size={20} weight={t.status === "OPEN" && !active ? "regular" : "fill"} />
+              <span className="text-left">
+                <span className="block text-xs font-extrabold leading-tight">{t.name}</span>
+                <span className={`block text-[9px] leading-tight ${active ? "text-white/80" : "opacity-60"}`}>{t.status}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Menu 70% | kalkulasi 30% */}
+      <div className="grid gap-4 lg:grid-cols-[7fr_3fr]">
         <Card className="p-3">
-          <h2 className="mb-2 px-1 text-sm font-extrabold">Meja</h2>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-3">
-            {tables.map((t) => (
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/35" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Cari menu…"
+                className="w-full rounded-xl border border-sunset-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-teal-400"
+              />
+            </div>
+            {current && (
+              <p className="text-xs font-bold text-ink/45">→ {current.order.code}</p>
+            )}
+          </div>
+          <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
+            <CatChip label="Semua" active={activeCat === "all"} onClick={() => setActiveCat("all")} />
+            {categories.map((c) => (
+              <CatChip key={c.id} label={c.name} active={activeCat === c.id} onClick={() => setActiveCat(c.id)} />
+            ))}
+          </div>
+          <div className="grid max-h-[60dvh] grid-cols-2 content-start gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-4">
+            {visibleItems.map((i) => (
               <button
-                key={t.id}
-                onClick={() => selectTable(t)}
-                className={`rounded-xl border p-2 text-center transition-colors ${
-                  preview?.id === t.id || current?.order.table?.name === t.name
-                    ? "border-sunset-500 bg-sunset-500 text-white"
-                    : t.status === "OCCUPIED"
-                      ? "border-sunset-200 bg-sunset-50"
-                      : t.status === "BOOKED"
-                        ? "border-gold-200 bg-gold-50"
-                        : "border-sunset-100 bg-white"
-                }`}
+                key={i.id}
+                disabled={!current || current.order.status !== "OPEN"}
+                onClick={() => addItem(i)}
+                className="overflow-hidden rounded-xl border border-sunset-100 bg-white text-left transition-colors hover:border-teal-400 disabled:opacity-40"
               >
-                <p className="text-xs font-bold">{t.name.replace("Meja ", "M")}</p>
-                <p className="text-[9px] opacity-60">{t.status}</p>
+                <div className="h-20 w-full">
+                  <MenuImage photos={i.photos} alt={i.name} />
+                </div>
+                <div className="p-2.5">
+                  <p className="line-clamp-2 text-sm font-bold leading-tight">{i.name}</p>
+                  <Money value={i.price} className="text-xs font-bold text-teal-700" />
+                </div>
               </button>
             ))}
+            {visibleItems.length === 0 && (
+              <p className="col-span-full py-8 text-center text-sm text-ink/40">Tidak ada menu yang cocok.</p>
+            )}
           </div>
         </Card>
 
-        {/* Menu cepat */}
-        <Card className="max-h-[70dvh] overflow-y-auto p-3">
-          <h2 className="mb-2 px-1 text-sm font-extrabold">Menu {current ? `→ ${current.order.code}` : "(pilih meja dulu)"}</h2>
-          {categories.map((c) => (
-            <div key={c.id} className="mb-3">
-              <p className="mb-1.5 px-1 text-[11px] font-bold uppercase tracking-wide text-ink/40">{c.name}</p>
-              <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
-                {c.items.filter((i) => i.available).map((i) => (
-                  <button
-                    key={i.id}
-                    disabled={!current || current.order.status !== "OPEN"}
-                    onClick={() => addItem(i)}
-                    className="rounded-xl border border-sunset-100 bg-white p-2.5 text-left hover:border-sunset-400 disabled:opacity-40"
-                  >
-                    <p className="line-clamp-1 text-xs font-bold">{i.name}</p>
-                    <Money value={i.price} className="text-[11px] text-sunset-600" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </Card>
-
-        {/* Order berjalan */}
-        <Card className="p-4">
+        {/* Kalkulasi order */}
+        <Card className="h-fit p-4">
           {preview ? (
-            <div className="py-4">
-              <h2 className="font-extrabold">{preview.name}</h2>
+            <div className="py-2">
+              <h2 className="flex items-center gap-2 font-extrabold">
+                <TableIcon size={22} weight="fill" className="text-teal-600" /> {preview.name}
+              </h2>
               <p className="mt-0.5 text-sm text-ink/55">
                 Status: <Badge status={preview.status} /> · kapasitas {preview.capacity}
               </p>
@@ -323,7 +389,7 @@ export default function POSPage() {
               )}
               <div className="mt-4 space-y-2">
                 {preview.orders[0] ? (
-                  <Button full onClick={() => continueOrder(preview)} disabled={busy}>
+                  <Button variant="teal" full onClick={() => continueOrder(preview)} disabled={busy}>
                     Lanjutkan Order Berjalan
                   </Button>
                 ) : (
@@ -382,11 +448,39 @@ export default function POSPage() {
                   </Button>
                 </div>
               )}
+              {/* Struk: preview/cetak browser + thermal */}
+              <div className="mt-3 space-y-2 border-t border-sunset-100 pt-3">
+                <Button
+                  variant="outline"
+                  full
+                  onClick={() => window.open(`/receipt/${current.order.id}?print=1`, "_blank")}
+                >
+                  <ReceiptIcon size={18} /> Preview & Cetak Struk
+                </Button>
+                {printerReady && (
+                  <Button variant="secondary" full onClick={printThermal} disabled={busy}>
+                    <Printer size={18} /> Cetak Thermal
+                  </Button>
+                )}
+              </div>
               {msg && <p className="mt-2 text-sm font-semibold text-violet-700">{msg}</p>}
             </>
           )}
         </Card>
       </div>
     </div>
+  );
+}
+
+function CatChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
+        active ? "bg-teal-600 text-white" : "border border-sunset-100 bg-white text-ink/55 hover:border-teal-300"
+      }`}
+    >
+      {label}
+    </button>
   );
 }

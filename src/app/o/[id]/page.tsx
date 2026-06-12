@@ -3,11 +3,13 @@
 import { use, useCallback, useEffect, useState } from "react";
 import {
   ArrowsSplit, CheckCircle, CookingPot, CreditCard, Crown, HourglassMedium,
-  Minus, Plus, QrCode, Receipt, Trash, WhatsappLogo, X,
+  Minus, Plus, QrCode, Receipt, Trash, WhatsappLogo,
 } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import { Badge, Button, Card, Money, Spinner } from "@/components/ui";
 import MenuImage from "@/components/MenuImage";
+import Sheet from "@/components/Sheet";
+import ConnectionBanner from "@/components/ConnectionBanner";
 import { formatIDR } from "@/lib/constants";
 
 type Participant = { id: string; name: string; isHost: boolean };
@@ -109,6 +111,7 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="mx-auto min-h-dvh max-w-screen-md pb-44">
+      <ConnectionBanner />
       <header className="sticky top-0 z-30 border-b border-sunset-100 bg-cream/90 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between">
           <div>
@@ -160,11 +163,16 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
               <CheckCircle size={24} weight="fill" className="shrink-0 text-emerald-600" />
               Semua tersaji — terima kasih sudah mampir! 🌅
             </p>
-            {order.table?.code && (
-              <Button variant="teal" full className="mt-3" onClick={() => (window.location.href = `/t/${order.table!.code}`)}>
-                <Plus size={16} weight="bold" /> Pesan Lagi (Ronde Baru)
+            <div className="mt-3 flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => window.open(`/receipt/${order.id}`, "_blank")}>
+                <Receipt size={16} /> Lihat / Unduh Struk
               </Button>
-            )}
+              {order.table?.code && (
+                <Button variant="teal" className="flex-1" onClick={() => (window.location.href = `/t/${order.table!.code}`)}>
+                  <Plus size={16} weight="bold" /> Ronde Baru
+                </Button>
+              )}
+            </div>
           </Card>
         )}
         {(order.status === "CANCELED" || order.status === "EXPIRED") && (
@@ -370,12 +378,8 @@ function SplitChoiceModal({
   const [mode, setMode] = useState<"SINGLE" | "UPFRONT">("SINGLE");
   const [busy, setBusy] = useState(false);
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 md:items-center" onClick={onClose}>
-      <div className="w-full rounded-t-3xl bg-white p-5 md:max-w-md md:rounded-3xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-extrabold">Cara Pembayaran</h2>
-          <button onClick={onClose} className="text-ink/40"><X size={22} /></button>
-        </div>
+    <Sheet title="Cara Pembayaran" onClose={onClose}>
+      <div>
         <p className="mb-3 text-xs text-ink/50">
           Setelah konfirmasi, pesanan terkunci (tidak bisa tambah/ubah item) dan masuk fase pembayaran.
         </p>
@@ -419,7 +423,7 @@ function SplitChoiceModal({
           {busy ? "Memproses…" : "Konfirmasi Pesanan"}
         </Button>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -491,18 +495,8 @@ function MenuSheet({ orderId, onClose, onAdded }: { orderId: string; onClose: ()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 md:items-center" onClick={onClose}>
-      <div
-        className="flex max-h-[85dvh] w-full flex-col rounded-t-3xl bg-white md:max-w-lg md:rounded-3xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between p-4 pb-2">
-          <h2 className="text-lg font-extrabold">Pilih Menu</h2>
-          <button onClick={onClose} className="text-ink/40">
-            <X size={22} />
-          </button>
-        </div>
-        <div className="overflow-y-auto px-4 pb-6">
+    <Sheet title="Pilih Menu" onClose={onClose} wide>
+      <div>
           {!categories ? (
             <Spinner />
           ) : (
@@ -534,8 +528,7 @@ function MenuSheet({ orderId, onClose, onAdded }: { orderId: string; onClose: ()
               </div>
             ))
           )}
-        </div>
       </div>
-    </div>
+    </Sheet>
   );
 }

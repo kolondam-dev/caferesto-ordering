@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Minus, ShoppingCartSimple, X, Clock } from "@phosphor-icons/react";
+import { Plus, Minus, ShoppingCartSimple, Clock } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import { Button, Card, Money, Spinner, Empty } from "@/components/ui";
 import MenuImage from "@/components/MenuImage";
+import Sheet from "@/components/Sheet";
 import CustomerShell from "@/components/CustomerShell";
 
 type MenuItem = {
@@ -154,7 +155,7 @@ export default function HomePage() {
       {count > 0 && !cartOpen && (
         <button
           onClick={() => setCartOpen(true)}
-          className="fixed bottom-20 left-4 right-4 z-40 flex items-center justify-between rounded-2xl bg-violet-700 px-5 py-3.5 text-white shadow-xl md:bottom-6 md:left-auto md:right-6 md:w-80"
+          className="fixed bottom-20 left-4 right-4 z-40 flex items-center justify-between rounded-2xl bg-teal-600 px-5 py-3.5 text-white shadow-xl md:bottom-6 md:left-auto md:right-6 md:w-80"
         >
           <span className="flex items-center gap-2 font-bold">
             <ShoppingCartSimple size={20} weight="fill" /> {count} item
@@ -165,17 +166,8 @@ export default function HomePage() {
 
       {/* Drawer keranjang */}
       {cartOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 md:items-center" onClick={() => setCartOpen(false)}>
-          <div
-            className="max-h-[85dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 md:max-w-md md:rounded-3xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-extrabold">Keranjang</h2>
-              <button onClick={() => setCartOpen(false)} className="text-ink/40">
-                <X size={22} />
-              </button>
-            </div>
+        <Sheet title="Keranjang" onClose={() => setCartOpen(false)}>
+          <div>
             {lines.map((l) => (
               <div key={l.item.id} className="flex items-center justify-between border-b border-sunset-50 py-2.5">
                 <div>
@@ -229,7 +221,7 @@ export default function HomePage() {
               </Button>
             </div>
           </div>
-        </div>
+        </Sheet>
       )}
     </CustomerShell>
   );
@@ -240,7 +232,7 @@ function CatChip({ label, active, onClick }: { label: string; active: boolean; o
     <button
       onClick={onClick}
       className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold ${
-        active ? "bg-violet-700 text-white" : "bg-white text-ink/60 border border-sunset-100"
+        active ? "bg-teal-600 text-white" : "bg-white text-ink/60 border border-sunset-100"
       }`}
     >
       {label}

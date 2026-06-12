@@ -113,7 +113,7 @@ function Stat({
     <button onClick={() => onSelect(id)} className="text-left" aria-pressed={active}>
       <Card
         className={`relative p-4 transition-shadow ${
-          active ? "ring-2 ring-sunset-400 ring-offset-2 ring-offset-cream" : "hover:ring-1 hover:ring-sunset-200"
+          active ? "shadow-md shadow-sunset-200/70" : "hover:shadow-sm"
         }`}
       >
         <div className="flex items-center gap-3">

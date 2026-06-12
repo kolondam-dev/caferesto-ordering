@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withIdempotency } from "@/lib/idempotency";
 import { db } from "@/lib/db";
 import { ITEM_STATUS, ORDER_STATUS } from "@/lib/constants";
 import { resolveOrderAccess } from "@/lib/order-access";
@@ -12,7 +13,7 @@ type Ctx = { params: Promise<{ id: string }> };
  * - UPFRONT : tiap member aktif membayar QR-nya sendiri (K3).
  * Charge dibuat saat masing-masing menekan tombol bayar (endpoint pay-share).
  */
-export async function POST(req: NextRequest, ctx: Ctx) {
+async function handlePost(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   const body = (await req.json().catch(() => ({}))) as { splitMode?: string };
   const splitMode = body.splitMode === "UPFRONT" ? "UPFRONT" : body.splitMode === "SINGLE" ? "SINGLE" : null;
@@ -38,3 +39,6 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   return NextResponse.json({ status: ORDER_STATUS.AWAITING_PAYMENT, splitMode, shares: await computeShares(id) });
 }
+
+// Aksi tulis kritis: retry client di-dedup lewat X-Idempotency-Key
+export const POST = (req: NextRequest, ctx: Ctx) => withIdempotency(req, () => handlePost(req, ctx));

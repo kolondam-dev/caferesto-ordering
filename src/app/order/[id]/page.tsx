@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowsSplit, CreditCard, Plus, X } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import { Badge, Button, Card, Input, Money, Spinner } from "@/components/ui";
+import Sheet from "@/components/Sheet";
 import CustomerShell from "@/components/CustomerShell";
 
 type Item = { id: string; nameSnapshot: string; price: number; qty: number; status: string; notes?: string };
@@ -132,9 +133,14 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
               </div>
             )}
             {order.status === "PAID" && (
-              <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-center text-sm font-bold text-emerald-700">
-                Lunas — terima kasih! 🌅
-              </p>
+              <>
+                <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-center text-sm font-bold text-emerald-700">
+                  Lunas — terima kasih! 🌅
+                </p>
+                <Button variant="teal" full className="mt-2" onClick={() => window.open(`/receipt/${order.id}`, "_blank")}>
+                  Lihat / Unduh Struk
+                </Button>
+              </>
             )}
             {error && <p className="mt-2 text-sm font-semibold text-red-600">{error}</p>}
           </Card>
@@ -223,17 +229,8 @@ function SplitModal({
   const perPerson = Math.ceil(due / Math.max(1, names.filter((n) => n.trim()).length));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 md:items-center" onClick={onClose}>
-      <div
-        className="max-h-[85dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 md:max-w-lg md:rounded-3xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-extrabold">Split Bill</h2>
-          <button onClick={onClose} className="text-ink/40">
-            <X size={22} />
-          </button>
-        </div>
+    <Sheet title="Split Bill" onClose={onClose} wide>
+      <div>
 
         <div className="mb-4 flex gap-2">
           <Button variant={mode === "even" ? "primary" : "outline"} onClick={() => setMode("even")} className="flex-1">
@@ -299,6 +296,6 @@ function SplitModal({
           {busy ? "Memproses…" : "Proses Pembayaran Split"}
         </Button>
       </div>
-    </div>
+    </Sheet>
   );
 }

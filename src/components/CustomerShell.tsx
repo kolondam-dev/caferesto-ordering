@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ForkKnife, CalendarCheck, Receipt, User } from "@phosphor-icons/react";
+import ConnectionBanner from "@/components/ConnectionBanner";
 
 const NAV = [
   { href: "/", label: "Menu", icon: ForkKnife },
@@ -16,6 +17,7 @@ export default function CustomerShell({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   return (
     <div className="mx-auto min-h-dvh max-w-screen-lg pb-20 md:pb-6">
+      <ConnectionBanner />
       <header className="sticky top-0 z-30 border-b border-sunset-100 bg-cream/90 backdrop-blur">
         <div className="flex items-center justify-between px-4 py-3 md:px-6">
           <Link href="/" className="text-lg font-extrabold">

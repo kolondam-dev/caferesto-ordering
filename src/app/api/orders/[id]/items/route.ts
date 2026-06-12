@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withIdempotency } from "@/lib/idempotency";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { ITEM_STATUS, ORDER_STATUS } from "@/lib/constants";
@@ -17,7 +18,7 @@ const schema = z.object({
  * - Jalur POS/booking (OPEN): item langsung QUEUED ke dapur.
  * - Jalur QR (DRAFT): item berstatus DRAFT, teratribusi ke peserta — dapur belum melihat.
  */
-export async function POST(req: NextRequest, ctx: Ctx) {
+async function handlePost(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   const order = await db.order.findUnique({ where: { id } });
   if (!order) return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
@@ -55,3 +56,6 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   if (isDraft) await db.order.update({ where: { id }, data: { lastActivityAt: new Date() } });
   return NextResponse.json({ items: created }, { status: 201 });
 }
+
+// Aksi tulis kritis: retry client di-dedup lewat X-Idempotency-Key
+export const POST = (req: NextRequest, ctx: Ctx) => withIdempotency(req, () => handlePost(req, ctx));

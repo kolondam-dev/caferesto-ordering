@@ -84,6 +84,51 @@ body {
   list-style: disc;
 }
 
+/* Bottom sheet: slide-up ala native mobile */
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.sheet-enter {
+  animation: sheet-up 0.22s ease-out;
+}
+
+/* Backoffice: radius diturunkan 2 step (kecil tapi tidak 0) */
+.backoffice :where(.rounded-3xl) {
+  border-radius: 0.5rem;
+}
+.backoffice :where(.rounded-2xl) {
+  border-radius: 0.375rem;
+}
+.backoffice :where(.rounded-xl) {
+  border-radius: 0.25rem;
+}
+.backoffice :where(.rounded-lg) {
+  border-radius: 0.125rem;
+}
+
+/* Struk: saat print, sembunyikan semua kecuali area struk */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .receipt-print,
+  .receipt-print * {
+    visibility: visible;
+  }
+  .receipt-print {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 80mm;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
