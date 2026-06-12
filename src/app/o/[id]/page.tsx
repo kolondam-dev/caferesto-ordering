@@ -62,10 +62,13 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
   const canEdit = isDraft && !!me;
   const myName = order.participants.find((p) => p.id === me?.participantId)?.name;
 
-  async function payShare() {
+  async function payShare(payRemaining = false) {
     setBusy(true);
     try {
-      const res = await api<{ redirectUrl: string | null }>(`/api/orders/${id}/pay-share`, { method: "POST" });
+      const res = await api<{ redirectUrl: string | null }>(`/api/orders/${id}/pay-share`, {
+        method: "POST",
+        body: payRemaining ? { payRemaining: true } : {},
+      });
       if (res.redirectUrl) window.location.href = res.redirectUrl; // Midtrans Snap
       else load();
     } catch (e) {
@@ -147,9 +150,16 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
           </Card>
         )}
         {order.status === "PAID" && (
-          <Card className="flex items-center gap-3 border-emerald-200 bg-emerald-50 p-4">
-            <CheckCircle size={24} weight="fill" className="shrink-0 text-emerald-600" />
-            <p className="text-sm font-semibold text-emerald-900">Semua tersaji — terima kasih sudah mampir! 🌅</p>
+          <Card className="border-emerald-200 bg-emerald-50 p-4">
+            <p className="flex items-center gap-3 text-sm font-semibold text-emerald-900">
+              <CheckCircle size={24} weight="fill" className="shrink-0 text-emerald-600" />
+              Semua tersaji — terima kasih sudah mampir! 🌅
+            </p>
+            {order.table?.code && (
+              <Button variant="teal" full className="mt-3" onClick={() => (window.location.href = `/t/${order.table!.code}`)}>
+                <Plus size={16} weight="bold" /> Pesan Lagi (Ronde Baru)
+              </Button>
+            )}
           </Card>
         )}
         {(order.status === "CANCELED" || order.status === "EXPIRED") && (
@@ -231,7 +241,7 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
                   ))}
                 </div>
                 {myShare && !myShare.settled && (
-                  <Button full className="mt-3" onClick={payShare} disabled={busy}>
+                  <Button full className="mt-3" onClick={() => payShare()} disabled={busy}>
                     <QrCode size={18} /> Bayar Bagian Saya — <Money value={myShare.amount} />
                   </Button>
                 )}
@@ -241,9 +251,16 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
                   </Button>
                 )}
                 {me?.isHost && bill.due > 0 && (
-                  <p className="mt-2 text-center text-[11px] text-ink/40">
-                    Konfirmasi akhir terbuka setelah semua peserta lunas.
-                  </p>
+                  <>
+                    <p className="mt-2 text-center text-[11px] text-ink/40">
+                      Konfirmasi akhir terbuka setelah semua peserta lunas.
+                    </p>
+                    {(!myShare || myShare.settled) && (
+                      <Button variant="outline" full className="mt-1" onClick={() => payShare(true)} disabled={busy}>
+                        Ambil Alih & Bayar Sisa — <Money value={bill.due} />
+                      </Button>
+                    )}
+                  </>
                 )}
               </>
             ) : (
@@ -261,7 +278,7 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
                 </p>
                 <div className="mt-3 space-y-2">
                   {me?.isHost && bill.due > 0 && (
-                    <Button full onClick={payShare} disabled={busy}>
+                    <Button full onClick={() => payShare()} disabled={busy}>
                       <CreditCard size={18} /> Bayar Total — <Money value={bill.due} />
                     </Button>
                   )}

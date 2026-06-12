@@ -9,6 +9,23 @@ import { shortCode } from "@/lib/code";
 export async function GET(req: NextRequest) {
   const guard = await requireRole();
   if (!isSession(guard)) return guard;
+
+  // ?attention=1 → draft QR yang mendekati TTL (reminder kasir, K4)
+  if (req.nextUrl.searchParams.get("attention") === "1") {
+    if (!STAFF_ROLES.includes(guard.role))
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    await runBookingLifecycle();
+    const settings = await getSettings();
+    const reminderMinutes = Math.max(1, settings.draftTtlMinutes - 5);
+    const cutoff = new Date(Date.now() - reminderMinutes * 60_000);
+    const orders = await db.order.findMany({
+      where: { source: "QR", status: ORDER_STATUS.DRAFT, lastActivityAt: { lt: cutoff } },
+      orderBy: { lastActivityAt: "asc" },
+      include: { table: true, items: true, participants: { select: { name: true } } },
+    });
+    return NextResponse.json({ orders, ttlMinutes: settings.draftTtlMinutes });
+  }
+
   const status = req.nextUrl.searchParams.get("status") ?? undefined;
   const mineOnly = !STAFF_ROLES.includes(guard.role);
   const orders = await db.order.findMany({
