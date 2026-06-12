@@ -1,7 +1,7 @@
 # CafeResto — Ordering, Booking & Manajemen Cafe-Resto
 
 Aplikasi web full-stack untuk cafe-resto: ordering dari meja, booking dengan konfirmasi fee,
-POS kasir, kitchen display, AI agent untuk owner, plus backend lengkap fitur PRO.
+POS kasir, kitchen display, AI agent untuk owner, plus backend lengkap untuk fitur PRO.
 
 ## Stack
 
