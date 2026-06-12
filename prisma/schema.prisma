@@ -141,9 +141,13 @@ model OrderParticipant {
   name     String
   phone    String? // opsional — "struk digital dikirim ke sini jika berminat"
   isHost   Boolean     @default(false)
-  token    String      @unique // guest id dari cookie, untuk klaim identitas
+  // Guest id dari cookie. Device yang sama boleh muncul di banyak order
+  // (ronde baru / meja lain) — unik hanya di dalam satu order.
+  token    String
   joinedAt DateTime    @default(now())
   items    OrderItem[]
+
+  @@unique([orderId, token])
 }
 
 model OrderItem {
