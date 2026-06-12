@@ -23,9 +23,10 @@ tidak berubah perilakunya (tetap pay-later).
 |---|---|---|
 | K1 | Validasi kasir setelah pembayaran | **Configurable** (`requireCashierValidation`), default **ON** |
 | K2 | Posisi alur QR | **Jalur utama**; fallback manual tetap ada tapi disamarkan |
-| K3 | Split UPFRONT | **Per item milik masing-masing peserta** + dukungan **gabung bayar** (beberapa peserta diwakili satu pembayar/QR) |
+| K3 | Split UPFRONT | **Per member aktif** — satu tagihan/QR per peserta yang join. Gabung bayar ditangani secara natural: beberapa orang memesan lewat satu peserta (tanpa entitas grup khusus) |
 | K4 | TTL draft | **30 menit idle**, dengan **reminder ke kasir sebelum expire** untuk cek validitas |
 | K5 | Service fee | Fitur baru, configurable di backoffice: on/off + tipe (persen / nominal flat) |
+| K6 | Split akhir | **1 QR total** dibayar order handler (host). Aplikasi hanya membantu dengan **rincian tagihan per member** (shareable) — penagihan ke teman dilakukan manual seperti praktik split bill umum |
 
 ## 3. User Story
 
@@ -41,7 +42,9 @@ tidak berubah perilakunya (tetap pay-later).
    yang masih di jalan → mereka buka link, join, dan memilih menu dari perjalanan.
 4. Semua selesai memilih → host **konfirmasi pesanan** → pilih **Split Akhir** →
    muncul **1 QR pembayaran** untuk total tagihan (subtotal + service fee + pajak −
-   deposit bila ada) → host bayar.
+   deposit bila ada) → host bayar. Aplikasi menampilkan **rincian per member**
+   (item, qty, subtotal + porsi fee/pajak masing-masing) yang bisa dibagikan via WA —
+   host menagih teman-temannya secara manual berbekal rincian ini.
 5. Order masuk antrian **Validasi** di POS kasir → kasir validate → item masuk
    antrian dapur (QUEUED).
 
@@ -49,12 +52,12 @@ tidak berubah perilakunya (tetap pay-later).
 
 Langkah 1–3 sama. Pada konfirmasi, host memilih **Split di Muka**:
 
-4. Sistem membuat tagihan **per peserta** = item miliknya + service fee & pajak
+4. Sistem membuat tagihan **per member aktif** = item miliknya + service fee & pajak
    proporsional. Layar setiap peserta menampilkan QR bayarnya masing-masing
    (+ tombol share link bayar via WA).
-5. **Gabung bayar:** sebelum charge dibuat, peserta bisa digabung ke satu
-   *payment group* (mis. 2 dari 5 orang dibayari satu orang) → grup itu mendapat
-   **satu QR** senilai gabungan tagihan anggotanya.
+5. **Gabung bayar (manual, tanpa fitur khusus):** dua orang yang ingin dibayari satu
+   pihak cukup memesan lewat **satu peserta** sejak awal — tagihan otomatis menyatu
+   di peserta itu. Tidak ada penggabungan QR setelah konfirmasi.
 6. Ketika **semua** pembayaran SETTLED (termasuk host), host menekan
    **konfirmasi akhir** → order masuk antrian Validasi kasir → dapur.
 
@@ -99,10 +102,9 @@ Pengaturan baru di **Dashboard → Pengaturan**: `serviceFeeEnabled` (on/off),
 |---|---|
 | `Table` | + `code` (slug pendek acak untuk URL QR, unique) |
 | `Order` | + status `DRAFT`, `AWAITING_PAYMENT`, `AWAITING_VALIDATION`, `IN_KITCHEN`; + `splitMode` (`SINGLE`\|`UPFRONT`), `source` (`QR`\|`POS`\|`BOOKING`), `lastActivityAt`, `needsReviewAt` |
-| `OrderParticipant` *(baru)* | `orderId`, `name`, `phone?`, `isHost`, `paymentGroupId?`, `joinedAt` |
-| `PaymentGroup` *(baru)* | `orderId`, `payerParticipantId` — wadah gabung bayar (K3) |
+| `OrderParticipant` *(baru)* | `orderId`, `name`, `phone?`, `isHost`, `joinedAt` |
 | `OrderItem` | + `participantId?`, + status `DRAFT` (sebelum `QUEUED`) |
-| `Payment` | + `paymentGroupId?` |
+| `Payment` | + `participantId?` (tagihan UPFRONT per member) |
 | `MenuItem` | + `prepMinutes?` (estimasi pembuatan, configurable per menu) |
 | `MenuPhoto` *(baru)* | `menuItemId`, `url`, `isPrimary`, `sort` — katalog multi-foto |
 | `Setting` | + `requireCashierValidation`, `draftTtlMinutes` (30), `serviceFee*` |
@@ -113,7 +115,7 @@ Pengaturan baru di **Dashboard → Pengaturan**: `serviceFeeEnabled` (on/off),
 |---|---|
 | `GET /t/[code]` *(page)* | Resolusi QR meja → join/buat draft → form nama + HP opsional |
 | `POST /api/orders/[id]/join` | Daftarkan peserta (guest session cookie) |
-| `POST /api/orders/[id]/confirm` | Host: kunci draft, pilih `splitMode`, bentuk payment group, buat charge |
+| `POST /api/orders/[id]/confirm` | Host: kunci draft, pilih `splitMode`, buat charge (1 total / per member) |
 | `POST /api/orders/[id]/validate` | Kasir: validate → item `QUEUED` (atau void) |
 | `POST /api/orders/[id]/review` | Kasir: tandai draft "masih valid" (perpanjang TTL) |
 | `POST /api/menu/[id]/photos` | Kelola foto katalog menu |
@@ -123,8 +125,9 @@ Pengaturan baru di **Dashboard → Pengaturan**: `serviceFeeEnabled` (on/off),
 
 1. **Halaman join QR** (`/t/[code]`) — form nama + HP opsional dengan caption struk digital.
 2. **Halaman order kolaboratif** — daftar item per peserta, badge host, tombol
-   "Bagikan menu" (WA), konfirmasi + pemilihan split, layar QR bayar per
-   peserta/grup, status menunggu pembayaran teman.
+   "Bagikan menu" (WA), konfirmasi + pemilihan split, layar QR bayar per member
+   (UPFRONT) atau 1 QR + **rincian per member yang shareable** (split akhir),
+   status menunggu pembayaran teman.
 3. **POS** — panel baru **Validasi** + daftar **Perlu Perhatian** (TTL reminder).
 4. **Dashboard Meja** — tombol **Cetak QR** (grid QR siap print, library `qrcode` client-side).
 5. **Fallback flow lama** — tetap ada, ditempatkan sekunder (mis. link kecil
@@ -196,7 +199,7 @@ main  (selalu deployable; semua PR direview & merge oleh owner)
 | Risiko | Mitigasi |
 |---|---|
 | QR statis bisa discan orang yang tidak di lokasi (iseng) | Pay-first + validasi kasir (K1) + TTL 30' dengan review kasir (K4) |
-| Peserta UPFRONT tidak kunjung bayar | Host bisa pindahkan peserta ke grup bayarnya / hapus peserta; order tidak pernah masuk dapur sebelum lunas |
+| Peserta UPFRONT tidak kunjung bayar | Host bisa bayar sisa tagihan (ambil alih) atau hapus peserta beserta itemnya; order tidak pernah masuk dapur sebelum lunas |
 | Cookie guest hilang (ganti browser/incognito) | Layar "pilih nama Anda" untuk re-claim peserta di order aktif |
 | Draft menumpuk menahan meja | TTL + daftar "Perlu Perhatian" kasir |
 | Service fee mengubah perhitungan lama | Terapkan terpusat di `getOrderDue()` — satu titik perubahan, dicover smoke test ulang |
@@ -205,8 +208,8 @@ main  (selalu deployable; semua PR direview & merge oleh owner)
 
 1. Dua device berbeda dapat join satu draft dari QR yang sama tanpa login; item
    teratribusi ke nama masing-masing; dapur belum melihat apa pun.
-2. SINGLE: satu QR; UPFRONT: QR per peserta/grup dengan nilai = item milik +
-   fee/pajak proporsional; gabung bayar menghasilkan satu QR gabungan.
+2. SINGLE: satu QR + rincian tagihan per member yang bisa dibagikan; UPFRONT: QR
+   per member aktif dengan nilai = item miliknya + fee/pajak proporsional.
 3. Order lunas hanya tampil di dapur setelah kasir validate (atau otomatis bila
    setting OFF).
 4. Draft idle 25' muncul di "Perlu Perhatian"; 30' auto-expire bila tanpa aksi.
