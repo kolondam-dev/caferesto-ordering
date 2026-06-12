@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withIdempotency } from "@/lib/idempotency";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireRole, isSession } from "@/lib/auth";
@@ -23,7 +24,7 @@ const schema = z.union([
  * Split bill. Membuat satu Payment per peserta lewat gateway.
  * Mock gateway → semua langsung settle dan order tertutup bila lunas.
  */
-export async function POST(req: NextRequest, ctx: Ctx) {
+async function handlePost(req: NextRequest, ctx: Ctx) {
   const guard = await requireRole();
   if (!isSession(guard)) return guard;
   const { id } = await ctx.params;
@@ -103,3 +104,6 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const result = await getOrderDue(id);
   return NextResponse.json({ payments, bill: { total, due: result.due }, orderStatus: result.order.status });
 }
+
+// Aksi tulis kritis: retry client di-dedup lewat X-Idempotency-Key
+export const POST = (req: NextRequest, ctx: Ctx) => withIdempotency(req, () => handlePost(req, ctx));

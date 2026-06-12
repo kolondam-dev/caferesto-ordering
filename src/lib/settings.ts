@@ -12,6 +12,9 @@ export type AppSettings = {
   serviceFeeType: "PERCENT" | "FLAT";
   serviceFeeValue: number;
   draftTtlMinutes: number; // draft QR idle melebihi ini → otomatis EXPIRED
+  // Thermal printer (ESC/POS via jaringan, port RAW 9100). Kosong = nonaktif.
+  printerHost: string;
+  printerPort: number;
 };
 
 const DEFAULTS: AppSettings = {
@@ -25,6 +28,8 @@ const DEFAULTS: AppSettings = {
   serviceFeeType: "PERCENT",
   serviceFeeValue: 5,
   draftTtlMinutes: 30,
+  printerHost: "",
+  printerPort: 9100,
 };
 
 export async function getSettings(): Promise<AppSettings> {
@@ -42,6 +47,8 @@ export async function getSettings(): Promise<AppSettings> {
     serviceFeeType: map.serviceFeeType === "FLAT" ? "FLAT" : "PERCENT",
     serviceFeeValue: Number(map.serviceFeeValue ?? DEFAULTS.serviceFeeValue),
     draftTtlMinutes: Number(map.draftTtlMinutes ?? DEFAULTS.draftTtlMinutes),
+    printerHost: String(map.printerHost ?? DEFAULTS.printerHost),
+    printerPort: Number(map.printerPort ?? DEFAULTS.printerPort),
   };
 }
 

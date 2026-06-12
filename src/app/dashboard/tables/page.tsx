@@ -1,8 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Printer, Users } from "@phosphor-icons/react";
+import { Plus, Printer, Users, PicnicTable, Rectangle } from "@phosphor-icons/react";
 import Link from "next/link";
+
+// Ikon meja: PicnicTable tersedia di Phosphor; Rectangle disiapkan sebagai
+// fallback bila set ikon diganti dan ikon meja tidak tersedia.
+const TableIcon = PicnicTable ?? Rectangle;
 import { api } from "@/lib/client";
 import { Badge, Button, Card, Input, PageTitle, Spinner } from "@/components/ui";
 
@@ -74,6 +78,11 @@ export default function TablesPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {tables.map((t) => (
           <Card key={t.id} className={`p-4 text-center ${t.status === "OCCUPIED" ? "bg-sunset-50" : t.status === "BOOKED" ? "bg-gold-50" : ""}`}>
+            <TableIcon
+              size={28}
+              weight={t.status === "OPEN" ? "regular" : "fill"}
+              className={`mx-auto mb-1 ${t.status === "OCCUPIED" ? "text-sunset-500" : t.status === "BOOKED" ? "text-gold-600" : "text-teal-600"}`}
+            />
             <p className="text-lg font-extrabold">{t.name}</p>
             <p className="mb-2 flex items-center justify-center gap-1 text-xs text-ink/50">
               <Users size={12} /> {t.capacity} orang

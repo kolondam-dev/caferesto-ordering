@@ -34,6 +34,15 @@ model Setting {
   value String
 }
 
+// Dedup aksi tulis kritis saat client retry (koneksi putus, respons hilang).
+// Client mengirim header X-Idempotency-Key; respons pertama disimpan & direplay.
+model IdempotencyKey {
+  key       String   @id
+  status    Int
+  body      String
+  createdAt DateTime @default(now())
+}
+
 model Table {
   id       String    @id @default(cuid())
   number   Int       @unique

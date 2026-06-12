@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withIdempotency } from "@/lib/idempotency";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getGuestId, newGuestId, signGuestToken, GUEST_COOKIE } from "@/lib/guest";
@@ -18,7 +19,7 @@ const schema = z.union([
  * Pemindai pertama menjadi host; berikutnya menjadi member.
  * Tanpa login: identitas guest disimpan di cookie (JWT).
  */
-export async function POST(req: NextRequest) {
+async function handlePost(req: NextRequest) {
   const parsed = schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
 
@@ -90,3 +91,6 @@ export async function POST(req: NextRequest) {
   });
   return res;
 }
+
+// Catatan: pada replay, Set-Cookie tidak ikut — pemulihan identitas tetap bisa lewat tombol klaim nama di halaman scan
+export const POST = (req: NextRequest) => withIdempotency(req, () => handlePost(req));

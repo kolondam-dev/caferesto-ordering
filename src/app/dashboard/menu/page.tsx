@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Camera, Plus, Star, Trash, X } from "@phosphor-icons/react";
+import { Camera, Plus, Star, Trash } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import { Button, Card, Input, Label, Money, PageTitle, Spinner } from "@/components/ui";
 import MenuImage from "@/components/MenuImage";
+import Sheet from "@/components/Sheet";
 
 type Photo = { id: string; url: string; isPrimary: boolean };
 type MenuItem = {
@@ -192,12 +193,8 @@ function PhotoModal({ item, onClose }: { item: MenuItem; onClose: () => void }) 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 md:items-center" onClick={onClose}>
-      <div className="max-h-[85dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 md:max-w-lg md:rounded-3xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-extrabold">Foto — {item.name}</h2>
-          <button onClick={onClose} className="text-ink/40"><X size={22} /></button>
-        </div>
+    <Sheet title={`Foto — ${item.name}`} onClose={onClose} wide>
+      <div>
 
         {!photos ? (
           <Spinner />
@@ -257,6 +254,6 @@ function PhotoModal({ item, onClose }: { item: MenuItem; onClose: () => void }) 
           </p>
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }

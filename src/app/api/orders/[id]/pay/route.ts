@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withIdempotency } from "@/lib/idempotency";
 import { db } from "@/lib/db";
 import { requireRole, isSession } from "@/lib/auth";
 import { ORDER_STATUS, STAFF_ROLES } from "@/lib/constants";
@@ -9,7 +10,7 @@ import { shortCode } from "@/lib/code";
 type Ctx = { params: Promise<{ id: string }> };
 
 /** Bayar sisa tagihan order. method: "gateway" (mock/midtrans) atau "cash" (kasir). */
-export async function POST(req: NextRequest, ctx: Ctx) {
+async function handlePost(req: NextRequest, ctx: Ctx) {
   const guard = await requireRole();
   if (!isSession(guard)) return guard;
   const { id } = await ctx.params;
@@ -58,3 +59,6 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const result = await getOrderDue(id);
   return NextResponse.json({ payment, redirectUrl, bill: { total: result.total, due: result.due }, orderStatus: result.order.status });
 }
+
+// Aksi tulis kritis: retry client di-dedup lewat X-Idempotency-Key
+export const POST = (req: NextRequest, ctx: Ctx) => withIdempotency(req, () => handlePost(req, ctx));

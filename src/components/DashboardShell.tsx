@@ -7,6 +7,7 @@ import {
   ChatCircleDots, Package, Truck, Invoice, Calculator, ClockUser, Money as MoneyIcon, SignOut, Crown,
 } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
+import ConnectionBanner from "@/components/ConnectionBanner";
 
 type Item = { href: string; label: string; icon: React.ElementType; pro?: boolean; roles?: string[] };
 
@@ -63,7 +64,8 @@ export default function DashboardShell({ children, role }: { children: React.Rea
   };
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="backoffice flex min-h-dvh">
+      <ConnectionBanner />
       {/* Sidebar — layar md+ */}
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col gap-1 overflow-y-auto border-r border-sunset-100 bg-white p-4 md:flex">
         <Link href="/dashboard" className="mb-3 px-2 text-lg font-extrabold">

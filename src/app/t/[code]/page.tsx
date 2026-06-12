@@ -2,9 +2,10 @@
 
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { QrCode, Users } from "@phosphor-icons/react";
+import { CoffeeBean, Gift, HandWaving, Users } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
-import { Button, Card, Input, Label, Spinner } from "@/components/ui";
+import { Button, Card, Input, Spinner } from "@/components/ui";
+import ConnectionBanner from "@/components/ConnectionBanner";
 
 type Resolve = {
   table: { id: string; name: string; capacity: number };
@@ -15,8 +16,8 @@ type Resolve = {
 };
 
 /**
- * Halaman pendaratan QR meja — jalur utama pemesanan (Scan & Serve).
- * Tanpa login: cukup nama (+ HP opsional untuk struk digital).
+ * Halaman pendaratan QR meja — kesan pertama harus ramah dan ringan:
+ * bukan "login", cukup berkenalan (nama; HP opsional untuk struk digital).
  */
 export default function TableScanPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -83,71 +84,88 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
       </Shell>
     );
 
+  const firstJoin = !data.order;
+
   return (
     <Shell>
-      <Card className="w-full max-w-sm p-6">
-        <div className="mb-4 text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-sunset-500 text-white">
-            <QrCode size={26} weight="fill" />
-          </div>
-          <h1 className="text-xl font-extrabold">{data.table.name}</h1>
-          <p className="flex items-center justify-center gap-1 text-sm text-ink/50">
-            <Users size={14} /> kapasitas {data.table.capacity} orang
-          </p>
-        </div>
-
-        {!data.order && data.lockedOrder && (
-          <div className="mb-4 rounded-xl bg-teal-50 p-3 text-xs text-teal-900">
-            Pesanan sebelumnya di meja ini sedang {data.lockedOrder.status === "IN_KITCHEN" ? "disiapkan dapur" : "diproses pembayarannya"}.
-            Mengisi form di bawah akan memulai <b>ronde pesanan baru</b>.
-          </div>
-        )}
-        {data.order && data.order.participants.length > 0 && (
-          <div className="mb-4 rounded-xl bg-violet-50 p-3">
-            <p className="text-xs font-semibold text-violet-900">
-              Sudah ada pesanan berjalan di meja ini — Anda akan bergabung dengan:
+      <div className="w-full max-w-sm">
+        <Card className="overflow-hidden">
+          {/* Sapaan hangat — bukan halaman login */}
+          <div className="bg-gradient-to-br from-sunset-500 via-sunset-400 to-gold-400 p-5 text-white">
+            <HandWaving size={34} weight="fill" className="mb-1.5" />
+            <h1 className="text-xl font-extrabold leading-snug">
+              Halo! Selamat datang di {data.table.name} ✨
+            </h1>
+            <p className="mt-1 text-sm text-white/90">
+              Pesan langsung dari HP — <b>tanpa aplikasi, tanpa daftar, tanpa antre</b>.
             </p>
-            <p className="mt-1 text-sm font-bold text-violet-900">
-              {data.order.participants.map((p) => p.name).join(", ")}
-            </p>
-            <p className="mt-2 text-[11px] text-violet-700">Pernah join tapi ganti perangkat? Klaim nama Anda:</p>
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {data.order.participants.map((p) => (
-                <button
-                  key={p.id}
-                  disabled={busy}
-                  onClick={() => claim(p.id)}
-                  className="rounded-full border border-violet-300 bg-white px-3 py-1 text-xs font-semibold text-violet-700"
-                >
-                  Saya {p.name}
-                </button>
-              ))}
-            </div>
           </div>
-        )}
 
-        <form onSubmit={join} className="space-y-3">
-          <div>
-            <Label>Nama Anda</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={40} placeholder="cth. Budi" />
+          <div className="p-5">
+            {!firstJoin && data.order!.participants.length > 0 && (
+              <div className="mb-4 rounded-2xl bg-teal-50 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-teal-900">
+                  <Users size={14} weight="fill" />
+                  {data.order!.participants.map((p) => p.name).join(", ")} sudah mulai memilih — yuk gabung!
+                </p>
+                <p className="mt-2 text-[11px] text-teal-700">Pernah join tapi ganti HP? Ketuk namamu:</p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {data.order!.participants.map((p) => (
+                    <button
+                      key={p.id}
+                      disabled={busy}
+                      onClick={() => claim(p.id)}
+                      className="rounded-full border border-teal-300 bg-white px-3 py-1 text-xs font-semibold text-teal-700"
+                    >
+                      Saya {p.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!data.order && data.lockedOrder && (
+              <div className="mb-4 rounded-2xl bg-violet-50 p-3 text-xs text-violet-900">
+                Pesanan sebelumnya di meja ini sedang {data.lockedOrder.status === "IN_KITCHEN" ? "disiapkan dapur" : "diproses"}.
+                Form di bawah akan memulai <b>ronde pesanan baru</b>.
+              </div>
+            )}
+
+            <form onSubmit={join} className="space-y-3">
+              <div>
+                <label className="mb-1 block text-sm font-bold">Siapa nama panggilanmu?</label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={40} placeholder="cth. Budi" autoFocus />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-ink/60">No. HP (boleh dikosongkan)</label>
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} placeholder="08xxxxxxxxxx" />
+                <p className="mt-1 text-[11px] text-ink/40">Struk digital Anda dikirim ke sini jika berminat.</p>
+              </div>
+              {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
+              <Button type="submit" variant="teal" full disabled={busy || !name.trim()} className="!py-3 text-base">
+                <CoffeeBean size={20} weight="fill" />
+                {busy ? "Sebentar ya…" : firstJoin ? "Mulai Pesan" : "Gabung & Pilih Menu"}
+              </Button>
+            </form>
           </div>
-          <div>
-            <Label>No. HP (opsional)</Label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} placeholder="08xxxxxxxxxx" />
-            <p className="mt-1 text-[11px] text-ink/40">Struk digital Anda dikirim ke sini jika berminat.</p>
+        </Card>
+
+        {/* Teaser member — opsional, tidak menghalangi */}
+        <Card className="mt-3 flex items-center gap-3 p-4">
+          <Gift size={28} weight="fill" className="shrink-0 text-sunset-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold">Sering mampir? Jadi member, gratis kok 😉</p>
+            <p className="text-[11px] text-ink/50">Riwayat pesanan tersimpan, booking meja, & promo duluan.</p>
           </div>
-          {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
-          <Button type="submit" full disabled={busy || !name.trim()}>
-            {busy ? "Memproses…" : data.order ? "Gabung Pesanan" : "Mulai Pesan"}
-          </Button>
-        </form>
-        <p className="mt-4 text-center text-[11px] text-ink/35">
-          Tanpa scan QR?{" "}
-          <a href="/" className="underline">
-            pesan lewat menu biasa
+          <a href={`/register?next=/t/${code}`} className="shrink-0 text-xs font-extrabold text-teal-700 underline">
+            Daftar
           </a>
+        </Card>
+        <p className="mt-3 text-center text-[11px] text-ink/35">
+          <a href="/" className="underline">Lihat menu tanpa scan</a>
         </p>
-      </Card>
+      </div>
+      <ConnectionBanner />
     </Shell>
   );
 }
