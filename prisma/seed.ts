@@ -34,13 +34,18 @@ async function main() {
     await db.setting.upsert({ where: { key }, update: {}, create: { key, value } });
   }
 
-  // Tables
+  // Tables (+ kode QR statis untuk URL /t/[code])
   for (let i = 1; i <= 10; i++) {
     await db.table.upsert({
       where: { number: i },
       update: {},
       create: { number: i, name: `Meja ${i}`, capacity: i <= 6 ? 4 : i <= 8 ? 6 : 8 },
     });
+  }
+  const noCode = await db.table.findMany({ where: { code: null } });
+  for (const t of noCode) {
+    const code = `T${t.number}${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    await db.table.update({ where: { id: t.id }, data: { code } });
   }
 
   // Menu

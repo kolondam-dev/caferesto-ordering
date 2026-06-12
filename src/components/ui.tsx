@@ -60,7 +60,11 @@ const BADGE_TONES: Record<string, string> = {
   // payable / payroll
   UNPAID: "bg-red-100 text-red-700",
   PARTIAL: "bg-gold-100 text-gold-800",
-  DRAFT: "bg-gray-200 text-gray-600",
+  DRAFT: "bg-violet-100 text-violet-800",
+  // jalur QR Scan & Serve
+  AWAITING_PAYMENT: "bg-gold-100 text-gold-800",
+  AWAITING_VALIDATION: "bg-teal-100 text-teal-800",
+  IN_KITCHEN: "bg-sunset-100 text-sunset-800",
 };
 
 export function Badge({ status, label }: { status: string; label?: string }) {

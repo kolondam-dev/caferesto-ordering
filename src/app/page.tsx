@@ -82,7 +82,7 @@ export default function HomePage() {
       <div className="mb-4 rounded-2xl bg-gradient-to-r from-sunset-500 via-sunset-400 to-gold-400 p-5 text-white md:p-7">
         <h1 className="text-xl font-extrabold md:text-3xl">Pesan langsung dari meja Anda 🌅</h1>
         <p className="mt-1 text-sm text-white/90 md:text-base">
-          Pilih menu, kirim ke dapur, bayar atau split bill — semua dari HP.
+          <b>Scan QR di meja Anda</b> untuk pesan bareng teman tanpa login — atau telusuri menu di bawah.
         </p>
       </div>
 
