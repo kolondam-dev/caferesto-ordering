@@ -39,8 +39,14 @@ export async function POST(req: NextRequest) {
     const target = order?.participants.find((p) => p.id === claimId);
     if (!order || !target)
       return NextResponse.json({ error: "Peserta tidak ditemukan di order aktif" }, { status: 404 });
-    await db.orderParticipant.update({ where: { id: target.id }, data: { token: gid } });
-    participantId = target.id;
+    const alreadyMe = order.participants.find((p) => p.token === gid);
+    if (alreadyMe) {
+      // Device ini sudah punya identitas di order ini — jangan bajak peserta lain
+      participantId = alreadyMe.id;
+    } else {
+      await db.orderParticipant.update({ where: { id: target.id }, data: { token: gid } });
+      participantId = target.id;
+    }
   } else {
     const { name, phone } = parsed.data;
     if (!order) {
