@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { signToken, AUTH_COOKIE } from "@/lib/auth";
+import { verifyTurnstile, TURNSTILE_ERROR } from "@/lib/turnstile";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -12,7 +13,10 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const parsed = schema.safeParse(await req.json());
+  const raw = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!(await verifyTurnstile(raw.turnstileToken as string | undefined)))
+    return NextResponse.json({ error: TURNSTILE_ERROR }, { status: 403 });
+  const parsed = schema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
   const { name, email, phone, password } = parsed.data;
 

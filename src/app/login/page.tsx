@@ -6,12 +6,14 @@ import Link from "next/link";
 import { Coffee } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import { Button, Card, Input, Label } from "@/components/ui";
+import Turnstile, { TURNSTILE_ENABLED } from "@/components/Turnstile";
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [tsToken, setTsToken] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +24,7 @@ function LoginForm() {
     try {
       const { user } = await api<{ user: { role: string } }>("/api/auth/login", {
         method: "POST",
-        body: { email, password },
+        body: { email, password, turnstileToken: tsToken || undefined },
       });
       const next = params.get("next");
       router.push(next ?? (user.role === "CUSTOMER" ? "/" : "/dashboard"));
@@ -55,8 +57,9 @@ function LoginForm() {
           <Label>Password</Label>
           <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" />
         </div>
+        <Turnstile onToken={setTsToken} />
         {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
-        <Button type="submit" full disabled={loading}>
+        <Button type="submit" full disabled={loading || (TURNSTILE_ENABLED && !tsToken)}>
           {loading ? "Memproses…" : "Masuk"}
         </Button>
       </form>
