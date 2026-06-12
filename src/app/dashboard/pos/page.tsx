@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Money as MoneyIcon, Plus, SealCheck } from "@phosphor-icons/react";
+import { Money as MoneyIcon, Plus, SealCheck, WarningCircle } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import { Badge, Button, Card, Money, PageTitle, Spinner } from "@/components/ui";
 
@@ -10,6 +10,81 @@ type ValOrder = {
   table?: { name: string } | null;
   items: { nameSnapshot: string; qty: number; status: string }[];
 };
+
+type AttnOrder = {
+  id: string; code: string; lastActivityAt: string;
+  table?: { name: string } | null;
+  items: { status: string }[];
+  participants: { name: string }[];
+};
+
+/** Reminder draft QR yang lama idle — kasir cek valid/tidaknya sebelum auto-expire (K4). */
+function AttentionQueue() {
+  const [orders, setOrders] = useState<AttnOrder[]>([]);
+  const [ttl, setTtl] = useState(30);
+  const [busy, setBusy] = useState("");
+
+  const load = useCallback(
+    () =>
+      api<{ orders: AttnOrder[]; ttlMinutes: number }>("/api/orders?attention=1")
+        .then((d) => {
+          setOrders(d.orders);
+          setTtl(d.ttlMinutes);
+        })
+        .catch(() => {}),
+    []
+  );
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 15000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  async function act(id: string, action: "extend" | "void") {
+    setBusy(id);
+    try {
+      await api(`/api/orders/${id}/review`, { method: "POST", body: { action } });
+      load();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  if (orders.length === 0) return null;
+  return (
+    <Card className="mb-4 border-gold-300 bg-gold-50 p-4">
+      <h2 className="mb-2 flex items-center gap-1.5 font-extrabold text-gold-900">
+        <WarningCircle size={20} weight="fill" /> Perlu Perhatian ({orders.length}) — draft QR lama tidak aktif
+      </h2>
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        {orders.map((o) => {
+          const idle = Math.floor((Date.now() - new Date(o.lastActivityAt).getTime()) / 60000);
+          return (
+            <div key={o.id} className="rounded-xl bg-white p-3">
+              <p className="text-sm font-extrabold">
+                {o.table?.name ?? "—"} · {o.code}
+                <span className="ml-1.5 text-[10px] font-bold text-red-600">idle {idle} mnt (auto-expire {ttl} mnt)</span>
+              </p>
+              <p className="mt-0.5 text-xs text-ink/55">
+                {o.participants.map((p) => p.name).join(", ") || "tanpa peserta"} · {o.items.filter((i) => i.status === "DRAFT").length} item draft
+              </p>
+              <div className="mt-2 flex gap-2">
+                <Button variant="gold" className="flex-1 !py-1.5 text-xs" disabled={busy === o.id} onClick={() => act(o.id, "extend")}>
+                  Masih Valid (+{ttl} mnt)
+                </Button>
+                <Button variant="outline" className="!py-1.5 text-xs" disabled={busy === o.id} onClick={() => act(o.id, "void")}>
+                  Void
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
 
 /** Antrian validasi order QR yang sudah lunas (Scan & Serve). */
 function ValidationQueue({ onChanged }: { onChanged: () => void }) {
@@ -170,6 +245,7 @@ export default function POSPage() {
     <div className="mx-auto max-w-7xl">
       <PageTitle title="POS Kasir" subtitle="Kelola order dine-in & takeaway" action={<Button variant="gold" onClick={openTakeaway} disabled={busy}><Plus size={16} /> Takeaway</Button>} />
       <ValidationQueue onChanged={loadTables} />
+      <AttentionQueue />
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr_340px]">
         {/* Meja */}

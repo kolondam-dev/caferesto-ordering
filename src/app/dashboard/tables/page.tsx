@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Users } from "@phosphor-icons/react";
+import { Plus, Printer, Users } from "@phosphor-icons/react";
+import Link from "next/link";
 import { api } from "@/lib/client";
 import { Badge, Button, Card, Input, PageTitle, Spinner } from "@/components/ui";
 
@@ -43,9 +44,16 @@ export default function TablesPage() {
         title="Meja"
         subtitle="Status meja live"
         action={
-          <Button variant="gold" onClick={() => setAdding((v) => !v)}>
-            <Plus size={16} /> Tambah
-          </Button>
+          <div className="flex gap-2">
+            <Link href="/dashboard/tables/print">
+              <Button variant="teal">
+                <Printer size={16} /> Cetak QR
+              </Button>
+            </Link>
+            <Button variant="gold" onClick={() => setAdding((v) => !v)}>
+              <Plus size={16} /> Tambah
+            </Button>
+          </div>
         }
       />
       {adding && (

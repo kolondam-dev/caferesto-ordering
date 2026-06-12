@@ -9,7 +9,9 @@ import { Button, Card, Input, Label, Spinner } from "@/components/ui";
 type Resolve = {
   table: { id: string; name: string; capacity: number };
   order: { id: string; code: string; participants: { id: string; name: string; isHost: boolean }[] } | null;
+  lockedOrder: { id: string; code: string; status: string } | null;
   myParticipantId: string | null;
+  myLockedOrderId: string | null;
 };
 
 /**
@@ -29,6 +31,7 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
     api<Resolve>(`/api/qr/resolve?code=${encodeURIComponent(code)}`)
       .then((d) => {
         if (d.myParticipantId && d.order) router.replace(`/o/${d.order.id}`);
+        else if (!d.order && d.myLockedOrderId) router.replace(`/o/${d.myLockedOrderId}`);
         else setData(d);
       })
       .catch((e) => setError(e.message));
@@ -93,6 +96,12 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
           </p>
         </div>
 
+        {!data.order && data.lockedOrder && (
+          <div className="mb-4 rounded-xl bg-teal-50 p-3 text-xs text-teal-900">
+            Pesanan sebelumnya di meja ini sedang {data.lockedOrder.status === "IN_KITCHEN" ? "disiapkan dapur" : "diproses pembayarannya"}.
+            Mengisi form di bawah akan memulai <b>ronde pesanan baru</b>.
+          </div>
+        )}
         {data.order && data.order.participants.length > 0 && (
           <div className="mb-4 rounded-xl bg-violet-50 p-3">
             <p className="text-xs font-semibold text-violet-900">

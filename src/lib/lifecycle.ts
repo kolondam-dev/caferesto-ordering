@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { getSettings } from "./settings";
-import { BOOKING_STATUS, TABLE_STATUS } from "./constants";
+import { BOOKING_STATUS, ORDER_STATUS, TABLE_STATUS } from "./constants";
 
 /**
  * Mesin lifecycle booking. Dipanggil secara opportunistik dari endpoint
@@ -52,5 +52,13 @@ export async function runBookingLifecycle() {
     canceled++;
   }
 
-  return { expired, canceled };
+  // 3. Draft QR idle melebihi TTL → EXPIRED (kasir bisa memperpanjang lewat
+  //    daftar "Perlu Perhatian" sebelum batas tercapai).
+  const draftCutoff = new Date(now.getTime() - settings.draftTtlMinutes * 60_000);
+  const staleDrafts = await db.order.updateMany({
+    where: { source: "QR", status: ORDER_STATUS.DRAFT, lastActivityAt: { lt: draftCutoff } },
+    data: { status: ORDER_STATUS.EXPIRED, closedAt: now },
+  });
+
+  return { expired, canceled, draftsExpired: staleDrafts.count };
 }
