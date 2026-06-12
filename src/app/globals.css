@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+/* Sunset tetrad: orange (matahari) — gold (cahaya) — teal (laut senja) — violet (langit) */
+@theme {
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+
+  --color-sunset-50: #fff3ed;
+  --color-sunset-100: #ffe3d4;
+  --color-sunset-200: #ffc3a8;
+  --color-sunset-300: #ff9a70;
+  --color-sunset-400: #ff7d49;
+  --color-sunset-500: #ff6b35;
+  --color-sunset-600: #f04e11;
+  --color-sunset-700: #c73a0a;
+  --color-sunset-800: #9e3010;
+  --color-sunset-900: #7f2b11;
+
+  --color-gold-50: #fff9eb;
+  --color-gold-100: #ffefc6;
+  --color-gold-200: #ffdd88;
+  --color-gold-300: #ffc54a;
+  --color-gold-400: #ffb627;
+  --color-gold-500: #f99007;
+  --color-gold-600: #dd6a02;
+  --color-gold-700: #b74906;
+  --color-gold-800: #94380c;
+  --color-gold-900: #7a2f0d;
+
+  --color-teal-50: #effbfb;
+  --color-teal-100: #d6f3f5;
+  --color-teal-200: #b2e7eb;
+  --color-teal-300: #7dd4dc;
+  --color-teal-400: #41b8c6;
+  --color-teal-500: #1b9aaa;
+  --color-teal-600: #187d90;
+  --color-teal-700: #196576;
+  --color-teal-800: #1d5361;
+  --color-teal-900: #1c4653;
+
+  --color-violet-50: #f6f2fc;
+  --color-violet-100: #eee7f9;
+  --color-violet-200: #ded2f4;
+  --color-violet-300: #c5b0ec;
+  --color-violet-400: #a886e0;
+  --color-violet-500: #8d5fd3;
+  --color-violet-600: #7a44c2;
+  --color-violet-700: #6f2dbd;
+  --color-violet-800: #582b8c;
+  --color-violet-900: #492571;
+
+  --color-cream: #fff8f1;
+  --color-ink: #2b1d26;
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Chat bubble markdown (gaya WhatsApp) */
+.chat-md table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: 0.8rem;
+}
+.chat-md th,
+.chat-md td {
+  border: 1px solid rgb(0 0 0 / 0.1);
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+}
+.chat-md th {
+  background: var(--color-sunset-50);
+}
+.chat-md p {
+  margin: 0.25rem 0;
+}
+.chat-md ul,
+.chat-md ol {
+  padding-left: 1.1rem;
+  margin: 0.25rem 0;
+  list-style: disc;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-sunset-200);
+  border-radius: 9999px;
+}

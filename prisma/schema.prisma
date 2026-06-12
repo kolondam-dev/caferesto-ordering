@@ -1,0 +1,262 @@
+// CafeResto — full schema (core + PRO modules)
+// SQLite tidak mendukung enum Prisma; nilai status memakai String,
+// konstanta terdefinisi di src/lib/constants.ts
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Core ─────────────────────────
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  phone        String?
+  passwordHash String
+  role         String       @default("CUSTOMER") // OWNER|MANAGER|CASHIER|KITCHEN|CUSTOMER
+  baseSalary   Int          @default(0)
+  createdAt    DateTime     @default(now())
+  bookings     Booking[]
+  orders       Order[]
+  attendances  Attendance[]
+  payslips     Payslip[]
+  chats        ChatMessage[]
+}
+
+model Setting {
+  key   String @id
+  value String
+}
+
+model Table {
+  id       String    @id @default(cuid())
+  number   Int       @unique
+  name     String
+  capacity Int
+  status   String    @default("OPEN") // OPEN|BOOKED|OCCUPIED
+  bookings Booking[]
+  orders   Order[]
+}
+
+model MenuCategory {
+  id    String     @id @default(cuid())
+  name  String
+  sort  Int        @default(0)
+  items MenuItem[]
+}
+
+model MenuItem {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  price       Int
+  imageUrl    String?
+  available   Boolean      @default(true)
+  categoryId  String
+  category    MenuCategory @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+}
+
+// Lifecycle booking:
+// PENDING ──(bayar fee sebelum payDeadlineAt = H-x)──▶ CONFIRMED (table BOOKED)
+//   └─ lewat deadline ──▶ EXPIRED (table OPEN)
+// CONFIRMED ──(buka order ≤ grace menit setelah scheduledAt)──▶ SEATED (table OCCUPIED)
+//   └─ lewat grace ──▶ CANCELED (table OPEN)
+// SEATED ──(order dibayar)──▶ COMPLETED (table OPEN)
+model Booking {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  customerId     String
+  customer       User      @relation(fields: [customerId], references: [id])
+  tableId        String
+  table          Table     @relation(fields: [tableId], references: [id])
+  partySize      Int
+  scheduledAt    DateTime
+  payDeadlineAt  DateTime
+  status         String    @default("PENDING")
+  feeAmount      Int
+  feePaidAt      DateTime?
+  canceledReason String?
+  createdAt      DateTime  @default(now())
+  order          Order?
+  payments       Payment[]
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  code           String      @unique
+  type           String      @default("DINE_IN") // DINE_IN|TAKEAWAY
+  status         String      @default("OPEN") // OPEN|PAID|CANCELED
+  tableId        String?
+  table          Table?      @relation(fields: [tableId], references: [id])
+  bookingId      String?     @unique
+  booking        Booking?    @relation(fields: [bookingId], references: [id])
+  customerId     String?
+  customer       User?       @relation(fields: [customerId], references: [id])
+  customerName   String?
+  depositApplied Int         @default(0) // booking fee yang dikreditkan ke tagihan
+  taxPercent     Int         @default(10)
+  createdAt      DateTime    @default(now())
+  closedAt       DateTime?
+  items          OrderItem[]
+  payments       Payment[]
+}
+
+model OrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id])
+  menuItemId   String
+  menuItem     MenuItem @relation(fields: [menuItemId], references: [id])
+  nameSnapshot String
+  price        Int
+  qty          Int
+  notes        String?
+  status       String   @default("QUEUED") // QUEUED|PREPARING|READY|SERVED|CANCELED
+  createdAt    DateTime @default(now())
+}
+
+// Abstraksi pembayaran — provider: mock|midtrans|cash
+model Payment {
+  id        String    @id @default(cuid())
+  ref       String    @unique
+  provider  String
+  method    String    @default("qris")
+  purpose   String // ORDER|BOOKING_FEE|SPLIT
+  status    String    @default("PENDING") // PENDING|SETTLED|FAILED|EXPIRED
+  amount    Int
+  payerName String?
+  orderId   String?
+  order     Order?    @relation(fields: [orderId], references: [id])
+  bookingId String?
+  booking   Booking?  @relation(fields: [bookingId], references: [id])
+  meta      String?
+  createdAt DateTime  @default(now())
+  settledAt DateTime?
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  role      String // user|assistant
+  content   String
+  createdAt DateTime @default(now())
+}
+
+// ───────────────────────── PRO ─────────────────────────
+
+model Supplier {
+  id       String          @id @default(cuid())
+  name     String
+  contact  String?
+  phone    String?
+  email    String?
+  address  String?
+  items    InventoryItem[]
+  payables Payable[]
+}
+
+model InventoryItem {
+  id         String          @id @default(cuid())
+  sku        String          @unique
+  name       String
+  unit       String          @default("pcs")
+  stock      Float           @default(0)
+  minStock   Float           @default(0)
+  costPrice  Int             @default(0)
+  supplierId String?
+  supplier   Supplier?       @relation(fields: [supplierId], references: [id])
+  movements  StockMovement[]
+}
+
+model StockMovement {
+  id        String        @id @default(cuid())
+  itemId    String
+  item      InventoryItem @relation(fields: [itemId], references: [id])
+  type      String // IN|OUT|ADJUST
+  qty       Float
+  note      String?
+  refType   String?
+  refId     String?
+  createdAt DateTime      @default(now())
+}
+
+model Payable {
+  id         String   @id @default(cuid())
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+  invoiceNo  String
+  amount     Int
+  paidAmount Int      @default(0)
+  dueDate    DateTime
+  status     String   @default("UNPAID") // UNPAID|PARTIAL|PAID
+  notes      String?
+  createdAt  DateTime @default(now())
+}
+
+model Account {
+  id    String        @id @default(cuid())
+  code  String        @unique
+  name  String
+  type  String // ASSET|LIABILITY|EQUITY|REVENUE|EXPENSE
+  lines JournalLine[]
+}
+
+model JournalEntry {
+  id        String        @id @default(cuid())
+  date      DateTime      @default(now())
+  memo      String
+  refType   String?
+  refId     String?
+  createdAt DateTime      @default(now())
+  lines     JournalLine[]
+}
+
+model JournalLine {
+  id        String       @id @default(cuid())
+  entryId   String
+  entry     JournalEntry @relation(fields: [entryId], references: [id])
+  accountId String
+  account   Account      @relation(fields: [accountId], references: [id])
+  debit     Int          @default(0)
+  credit    Int          @default(0)
+}
+
+model Attendance {
+  id       String    @id @default(cuid())
+  userId   String
+  user     User      @relation(fields: [userId], references: [id])
+  clockIn  DateTime  @default(now())
+  clockOut DateTime?
+  note     String?
+}
+
+model PayrollPeriod {
+  id        String    @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  status    String    @default("DRAFT") // DRAFT|FINALIZED|PAID
+  payslips  Payslip[]
+}
+
+model Payslip {
+  id         String        @id @default(cuid())
+  periodId   String
+  period     PayrollPeriod @relation(fields: [periodId], references: [id])
+  userId     String
+  user       User          @relation(fields: [userId], references: [id])
+  baseSalary Int
+  allowance  Int           @default(0)
+  deduction  Int           @default(0)
+  netPay     Int
+  status     String        @default("DRAFT") // DRAFT|PAID
+  paidAt     DateTime?
+}
