@@ -52,10 +52,23 @@ export function formatIDR(n: number) {
   }).format(n);
 }
 
-export function orderTotal(items: { price: number; qty: number; status: string }[], taxPercent: number) {
+/**
+ * Tagihan order. Service fee dihitung dari snapshot di Order (bukan setting live)
+ * agar deterministik; pajak dihitung atas (subtotal + service fee) — praktik umum
+ * resto Indonesia (service charge dulu, baru PB1).
+ */
+export function orderTotal(
+  items: { price: number; qty: number; status: string }[],
+  taxPercent: number,
+  serviceFee?: { type: string | null; value: number }
+) {
   const subtotal = items
     .filter((i) => i.status !== ITEM_STATUS.CANCELED)
     .reduce((s, i) => s + i.price * i.qty, 0);
-  const tax = Math.round((subtotal * taxPercent) / 100);
-  return { subtotal, tax, total: subtotal + tax };
+  let fee = 0;
+  if (subtotal > 0 && serviceFee?.type) {
+    fee = serviceFee.type === "FLAT" ? serviceFee.value : Math.round((subtotal * serviceFee.value) / 100);
+  }
+  const tax = Math.round(((subtotal + fee) * taxPercent) / 100);
+  return { subtotal, serviceFee: fee, tax, total: subtotal + fee + tax };
 }

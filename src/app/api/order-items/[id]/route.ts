@@ -41,6 +41,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: `Transisi ${item.status} → ${body.status} tidak valid` }, { status: 400 });
 
   const updated = await db.orderItem.update({ where: { id }, data: { status: body.status } });
+
+  // Order QR: setelah semua item tersaji, tutup order & bebaskan meja
+  if (body.status === ITEM_STATUS.SERVED && item.order.source === "QR") {
+    const { completeIfAllServed } = await import("@/lib/qr-flow");
+    await completeIfAllServed(item.orderId);
+  }
   return NextResponse.json({ item: updated });
 }
 

@@ -15,7 +15,7 @@ type OrderData = {
     table?: { name: string } | null; booking?: { code: string } | null;
     items: Item[]; payments: Payment[];
   };
-  bill: { subtotal: number; tax: number; total: number; settled: number; deposit: number; due: number };
+  bill: { subtotal: number; serviceFee: number; tax: number; total: number; settled: number; deposit: number; due: number };
 };
 
 export default function OrderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -111,6 +111,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
           <Card className="p-4">
             <h2 className="mb-3 font-extrabold">Tagihan</h2>
             <Row label="Subtotal" value={bill.subtotal} />
+            {bill.serviceFee > 0 && <Row label="Service fee" value={bill.serviceFee} />}
             <Row label="Pajak" value={bill.tax} />
             {bill.deposit > 0 && <Row label="Deposit booking fee" value={-bill.deposit} accent />}
             {bill.settled > 0 && <Row label="Sudah dibayar" value={-bill.settled} accent />}

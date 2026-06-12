@@ -9,7 +9,10 @@ export async function GET() {
   if (!isSession(guard)) return guard;
 
   const items = await db.orderItem.findMany({
-    where: { status: { in: ["QUEUED", "PREPARING", "READY"] }, order: { status: "OPEN" } },
+    where: {
+      status: { in: ["QUEUED", "PREPARING", "READY"] },
+      order: { status: { in: ["OPEN", "IN_KITCHEN"] } }, // POS pay-later + QR pay-first
+    },
     orderBy: { createdAt: "asc" },
     include: { order: { include: { table: true } } },
   });
