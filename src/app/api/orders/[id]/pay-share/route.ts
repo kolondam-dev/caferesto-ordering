@@ -14,8 +14,9 @@ type Ctx = { params: Promise<{ id: string }> };
  * - SINGLE  : host membayar seluruh sisa tagihan (1 QR).
  * - UPFRONT : peserta membayar share-nya sendiri (item milik + fee/pajak proporsional).
  */
-export async function POST(_req: NextRequest, ctx: Ctx) {
+export async function POST(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
+  const body = (await req.json().catch(() => ({}))) as { payRemaining?: boolean };
   const order = await db.order.findUnique({ where: { id } });
   if (!order) return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
   if (order.source !== "QR" || order.status !== ORDER_STATUS.AWAITING_PAYMENT)
@@ -28,7 +29,16 @@ export async function POST(_req: NextRequest, ctx: Ctx) {
   let participantId: string | null = null;
   let description: string;
 
-  if (order.splitMode === "SINGLE") {
+  if (order.splitMode === "UPFRONT" && body.payRemaining) {
+    // Host mengambil alih seluruh sisa tagihan (peserta tak kunjung bayar)
+    if (!access.isController)
+      return NextResponse.json({ error: "Hanya host yang bisa ambil alih sisa tagihan" }, { status: 403 });
+    const { due } = await getOrderDue(id);
+    if (due <= 0) return NextResponse.json({ error: "Tagihan sudah lunas" }, { status: 400 });
+    amount = due;
+    participantId = access.participant?.id ?? null;
+    description = `Ambil alih sisa tagihan ${order.code}`;
+  } else if (order.splitMode === "SINGLE") {
     if (!access.isController)
       return NextResponse.json({ error: "Split akhir: pembayaran dilakukan oleh host" }, { status: 403 });
     const { due } = await getOrderDue(id);

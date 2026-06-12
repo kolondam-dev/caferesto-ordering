@@ -14,6 +14,7 @@ type Settings = {
   serviceFeeEnabled: boolean;
   serviceFeeType: "PERCENT" | "FLAT";
   serviceFeeValue: number;
+  draftTtlMinutes: number;
 };
 
 export default function SettingsPage() {
@@ -87,6 +88,13 @@ export default function SettingsPage() {
               />
               Wajib validasi kasir sebelum pesanan masuk dapur
             </label>
+            <div className="mb-3 max-w-xs">
+              <Label>TTL draft QR (menit)</Label>
+              <Input type="number" min={5} value={settings.draftTtlMinutes} onChange={set("draftTtlMinutes")} />
+              <p className="mt-1 text-[11px] text-ink/40">
+                Draft idle melebihi ini otomatis kedaluwarsa; reminder muncul di POS 5 menit sebelumnya.
+              </p>
+            </div>
             <label className="mb-2 flex items-center gap-2 text-sm font-semibold">
               <input
                 type="checkbox"

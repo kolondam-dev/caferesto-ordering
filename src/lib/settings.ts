@@ -11,6 +11,7 @@ export type AppSettings = {
   serviceFeeEnabled: boolean;
   serviceFeeType: "PERCENT" | "FLAT";
   serviceFeeValue: number;
+  draftTtlMinutes: number; // draft QR idle melebihi ini → otomatis EXPIRED
 };
 
 const DEFAULTS: AppSettings = {
@@ -23,6 +24,7 @@ const DEFAULTS: AppSettings = {
   serviceFeeEnabled: false,
   serviceFeeType: "PERCENT",
   serviceFeeValue: 5,
+  draftTtlMinutes: 30,
 };
 
 export async function getSettings(): Promise<AppSettings> {
@@ -39,6 +41,7 @@ export async function getSettings(): Promise<AppSettings> {
     serviceFeeEnabled: bool("serviceFeeEnabled"),
     serviceFeeType: map.serviceFeeType === "FLAT" ? "FLAT" : "PERCENT",
     serviceFeeValue: Number(map.serviceFeeValue ?? DEFAULTS.serviceFeeValue),
+    draftTtlMinutes: Number(map.draftTtlMinutes ?? DEFAULTS.draftTtlMinutes),
   };
 }
 

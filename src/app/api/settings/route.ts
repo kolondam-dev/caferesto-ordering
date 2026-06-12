@@ -21,6 +21,7 @@ export async function PATCH(req: NextRequest) {
     "serviceFeeEnabled",
     "serviceFeeType",
     "serviceFeeValue",
+    "draftTtlMinutes",
   ];
   const patch: Record<string, string | number> = {};
   for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
