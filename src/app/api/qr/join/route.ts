@@ -54,6 +54,8 @@ export async function POST(req: NextRequest) {
           tableId: table.id,
           customerName: name,
           taxPercent: settings.taxPercent,
+          serviceFeeType: settings.serviceFeeEnabled ? settings.serviceFeeType : null,
+          serviceFeeValue: settings.serviceFeeEnabled ? settings.serviceFeeValue : 0,
           participants: { create: { name, phone: phone || null, isHost: true, token: gid } },
         },
         include: { participants: true },

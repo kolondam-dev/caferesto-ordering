@@ -51,11 +51,14 @@ export async function POST(req: NextRequest) {
         data: {
           code: shortCode("ORD"),
           type: "DINE_IN",
+          source: "BOOKING",
           tableId: booking.tableId,
           bookingId: booking.id,
           customerId: booking.customerId,
           depositApplied: booking.feeAmount, // booking fee jadi deposit tagihan
           taxPercent: settings.taxPercent,
+          serviceFeeType: settings.serviceFeeEnabled ? settings.serviceFeeType : null,
+          serviceFeeValue: settings.serviceFeeEnabled ? settings.serviceFeeValue : 0,
         },
       }),
       db.booking.update({ where: { id: booking.id }, data: { status: BOOKING_STATUS.SEATED } }),
@@ -84,6 +87,8 @@ export async function POST(req: NextRequest) {
       customerId: guard.role === "CUSTOMER" ? guard.sub : null,
       customerName: body.customerName ?? guard.name,
       taxPercent: settings.taxPercent,
+      serviceFeeType: settings.serviceFeeEnabled ? settings.serviceFeeType : null,
+      serviceFeeValue: settings.serviceFeeEnabled ? settings.serviceFeeValue : 0,
     },
   });
   if (tableId) await db.table.update({ where: { id: tableId }, data: { status: TABLE_STATUS.OCCUPIED } });

@@ -29,9 +29,23 @@ export async function applySettlement(paymentId: string) {
     return payment;
   }
 
-  // Pembayaran order (penuh atau split) → tutup order bila sudah lunas
+  // Pembayaran order
   if (payment.order) {
-    await closeOrderIfPaid(payment.order.id);
+    if (payment.order.source === "QR") {
+      // Jalur Scan & Serve: SINGLE lunas → lanjut validasi/dapur otomatis;
+      // UPFRONT menunggu konfirmasi akhir host (endpoint finalize).
+      const { due } = await getOrderDue(payment.order.id);
+      if (
+        due <= 0 &&
+        payment.order.status === ORDER_STATUS.AWAITING_PAYMENT &&
+        payment.order.splitMode === "SINGLE"
+      ) {
+        const { moveToValidationOrKitchen } = await import("../qr-flow");
+        await moveToValidationOrKitchen(payment.order.id);
+      }
+    } else {
+      await closeOrderIfPaid(payment.order.id);
+    }
   }
   return payment;
 }
@@ -41,12 +55,15 @@ export async function getOrderDue(orderId: string) {
     where: { id: orderId },
     include: { items: true, payments: true },
   });
-  const { subtotal, tax, total } = orderTotal(order.items, order.taxPercent);
+  const { subtotal, serviceFee, tax, total } = orderTotal(order.items, order.taxPercent, {
+    type: order.serviceFeeType,
+    value: order.serviceFeeValue,
+  });
   const settled = order.payments
     .filter((p) => p.status === "SETTLED")
     .reduce((s, p) => s + p.amount, 0);
   const due = Math.max(0, total - order.depositApplied - settled);
-  return { order, subtotal, tax, total, settled, deposit: order.depositApplied, due };
+  return { order, subtotal, serviceFee, tax, total, settled, deposit: order.depositApplied, due };
 }
 
 export async function closeOrderIfPaid(orderId: string) {

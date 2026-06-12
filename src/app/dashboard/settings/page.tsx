@@ -10,6 +10,10 @@ type Settings = {
   bookingGraceMinutes: number;
   taxPercent: number;
   cafeName: string;
+  requireCashierValidation: boolean;
+  serviceFeeEnabled: boolean;
+  serviceFeeType: "PERCENT" | "FLAT";
+  serviceFeeValue: number;
 };
 
 export default function SettingsPage() {
@@ -23,7 +27,14 @@ export default function SettingsPage() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!settings) return;
-    const { settings: next } = await api<{ settings: Settings }>("/api/settings", { method: "PATCH", body: settings });
+    const { settings: next } = await api<{ settings: Settings }>("/api/settings", {
+      method: "PATCH",
+      body: {
+        ...settings,
+        requireCashierValidation: settings.requireCashierValidation ? "1" : "0",
+        serviceFeeEnabled: settings.serviceFeeEnabled ? "1" : "0",
+      },
+    });
     setSettings(next);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -61,7 +72,52 @@ export default function SettingsPage() {
             <div>
               <Label>Pajak (%)</Label>
               <Input type="number" min={0} max={100} value={settings.taxPercent} onChange={set("taxPercent")} />
+              <p className="mt-1 text-[11px] text-ink/40">Dihitung atas subtotal + service fee.</p>
             </div>
+          </div>
+
+          <div className="border-t border-sunset-100 pt-4">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-ink/40">Scan & Serve (Order QR)</p>
+            <label className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={settings.requireCashierValidation}
+                onChange={(e) => setSettings((s) => s && { ...s, requireCashierValidation: e.target.checked })}
+                className="h-4 w-4 accent-sunset-500"
+              />
+              Wajib validasi kasir sebelum pesanan masuk dapur
+            </label>
+            <label className="mb-2 flex items-center gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={settings.serviceFeeEnabled}
+                onChange={(e) => setSettings((s) => s && { ...s, serviceFeeEnabled: e.target.checked })}
+                className="h-4 w-4 accent-sunset-500"
+              />
+              Aktifkan service fee
+            </label>
+            {settings.serviceFeeEnabled && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Tipe</Label>
+                  <select
+                    value={settings.serviceFeeType}
+                    onChange={(e) => setSettings((s) => s && { ...s, serviceFeeType: e.target.value as "PERCENT" | "FLAT" })}
+                    className="w-full rounded-xl border border-sunset-200 bg-white px-3.5 py-2.5 text-sm"
+                  >
+                    <option value="PERCENT">Persentase (%)</option>
+                    <option value="FLAT">Nominal flat (Rp)</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>{settings.serviceFeeType === "PERCENT" ? "Nilai (%)" : "Nominal (Rp)"}</Label>
+                  <Input type="number" min={0} value={settings.serviceFeeValue} onChange={set("serviceFeeValue")} />
+                </div>
+              </div>
+            )}
+            <p className="mt-2 text-[11px] text-ink/40">
+              Service fee disnapshot ke setiap order baru — order berjalan tidak berubah.
+            </p>
           </div>
           <Button type="submit">{saved ? "Tersimpan ✓" : "Simpan Pengaturan"}</Button>
         </form>

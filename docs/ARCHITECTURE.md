@@ -121,6 +121,20 @@ endpoint webhook (mis. `/api/wa/webhook`) yang menerima pesan masuk dari WhatsAp
 Business API / BSP (Twilio, Qiscus, dsb.), memanggil fungsi yang sama, lalu mengirim
 balasan via API WA. UI dashboard tidak perlu diubah.
 
+## 3b. Alur Scan & Serve (QR, pay-first)
+
+Status order jalur QR: `DRAFT → AWAITING_PAYMENT → AWAITING_VALIDATION → IN_KITCHEN → PAID`
+(detail di `docs/proposals/scan-and-serve-qr-self-ordering.md`).
+
+- Mesin alur di `src/lib/qr-flow.ts`: `computeShares` (rincian per member),
+  `moveToValidationOrKitchen` (hormati setting `requireCashierValidation`),
+  `enterKitchen` (item DRAFT→QUEUED, meja OCCUPIED), `completeIfAllServed`.
+- **Service fee** disnapshot ke Order saat dibuat (`serviceFeeType/Value`);
+  pajak dihitung atas (subtotal + service fee) — terpusat di `orderTotal()`.
+- Split **SINGLE**: 1 charge oleh host, settle → auto ke validasi.
+  Split **UPFRONT**: charge per member via `pay-share`, lunas semua → host `finalize`.
+- Jalur POS/booking tetap pay-later (`OPEN → PAID`), tidak berubah.
+
 ## 4. Lifecycle Booking (referensi)
 
 ```mermaid

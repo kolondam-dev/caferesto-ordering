@@ -108,6 +108,9 @@ model Order {
   customerName   String?
   depositApplied Int         @default(0) // booking fee yang dikreditkan ke tagihan
   taxPercent     Int         @default(10)
+  // Snapshot service fee saat order dibuat (agar tagihan deterministik)
+  serviceFeeType  String? // PERCENT|FLAT, null = tanpa service fee
+  serviceFeeValue Int     @default(0)
   createdAt      DateTime    @default(now())
   closedAt       DateTime?
   items          OrderItem[]
@@ -157,6 +160,7 @@ model Payment {
   payerName String?
   orderId   String?
   order     Order?    @relation(fields: [orderId], references: [id])
+  participantId String? // pembayar share UPFRONT (jalur QR)
   bookingId String?
   booking   Booking?  @relation(fields: [bookingId], references: [id])
   meta      String?

@@ -24,13 +24,22 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const access = await resolveOrderAccess(order);
   if (!access.canAccess) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { subtotal, tax, total, settled, deposit, due } = await getOrderDue(id);
+  const { subtotal, serviceFee, tax, total, settled, deposit, due } = await getOrderDue(id);
+
+  // Rincian per member (jalur QR) — dipakai untuk QR bayar UPFRONT & rincian split akhir
+  let shares = null;
+  if (order.source === "QR" && order.items.length > 0) {
+    const { computeShares } = await import("@/lib/qr-flow");
+    shares = await computeShares(id);
+  }
+
   return NextResponse.json({
     order: {
       ...order,
       participants: order.participants.map((p) => ({ id: p.id, name: p.name, isHost: p.isHost })),
     },
-    bill: { subtotal, tax, total, settled, deposit, due },
+    bill: { subtotal, serviceFee, tax, total, settled, deposit, due },
+    shares,
     me: access.participant ? { participantId: access.participant.id, isHost: access.participant.isHost } : null,
   });
 }

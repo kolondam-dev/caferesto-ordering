@@ -1,9 +1,78 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Money as MoneyIcon, Plus } from "@phosphor-icons/react";
+import { Money as MoneyIcon, Plus, SealCheck } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import { Badge, Button, Card, Money, PageTitle, Spinner } from "@/components/ui";
+
+type ValOrder = {
+  id: string; code: string; splitMode: string | null;
+  table?: { name: string } | null;
+  items: { nameSnapshot: string; qty: number; status: string }[];
+};
+
+/** Antrian validasi order QR yang sudah lunas (Scan & Serve). */
+function ValidationQueue({ onChanged }: { onChanged: () => void }) {
+  const [orders, setOrders] = useState<ValOrder[]>([]);
+  const [busy, setBusy] = useState("");
+
+  const load = useCallback(
+    () =>
+      api<{ orders: ValOrder[] }>("/api/orders?status=AWAITING_VALIDATION")
+        .then((d) => setOrders(d.orders))
+        .catch(() => {}),
+    []
+  );
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  async function act(id: string, action: "approve" | "void") {
+    if (action === "void" && !confirm("Void order ini? Refund pembayaran ditangani manual.")) return;
+    setBusy(id);
+    try {
+      await api(`/api/orders/${id}/validate`, { method: "POST", body: { action } });
+      load();
+      onChanged();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  if (orders.length === 0) return null;
+  return (
+    <Card className="mb-4 border-teal-300 bg-teal-50 p-4">
+      <h2 className="mb-2 flex items-center gap-1.5 font-extrabold text-teal-900">
+        <SealCheck size={20} weight="fill" /> Perlu Validasi ({orders.length}) — order QR sudah dibayar
+      </h2>
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        {orders.map((o) => (
+          <div key={o.id} className="rounded-xl bg-white p-3">
+            <p className="text-sm font-extrabold">
+              {o.table?.name ?? "—"} · {o.code}
+              <span className="ml-1.5 text-[10px] font-bold text-violet-700">{o.splitMode === "UPFRONT" ? "SPLIT MUKA" : "SPLIT AKHIR"}</span>
+            </p>
+            <p className="mt-0.5 line-clamp-2 text-xs text-ink/55">
+              {o.items.filter((i) => i.status !== "CANCELED").map((i) => `${i.qty}× ${i.nameSnapshot}`).join(", ")}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <Button variant="teal" className="flex-1 !py-1.5 text-xs" disabled={busy === o.id} onClick={() => act(o.id, "approve")}>
+                Validasi → Dapur
+              </Button>
+              <Button variant="outline" className="!py-1.5 text-xs" disabled={busy === o.id} onClick={() => act(o.id, "void")}>
+                Void
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 type TableT = { id: string; name: string; capacity: number; status: string; orders: { id: string }[] };
 type MenuItem = { id: string; name: string; price: number; available: boolean };
@@ -14,7 +83,7 @@ type OrderData = {
     table?: { name: string } | null;
     items: { id: string; nameSnapshot: string; price: number; qty: number; status: string }[];
   };
-  bill: { subtotal: number; tax: number; total: number; settled: number; deposit: number; due: number };
+  bill: { subtotal: number; serviceFee: number; tax: number; total: number; settled: number; deposit: number; due: number };
 };
 
 /** POS kasir: pilih meja → tambah item → bayar cash / gateway. */
@@ -100,6 +169,7 @@ export default function POSPage() {
   return (
     <div className="mx-auto max-w-7xl">
       <PageTitle title="POS Kasir" subtitle="Kelola order dine-in & takeaway" action={<Button variant="gold" onClick={openTakeaway} disabled={busy}><Plus size={16} /> Takeaway</Button>} />
+      <ValidationQueue onChanged={loadTables} />
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr_340px]">
         {/* Meja */}
@@ -176,6 +246,9 @@ export default function POSPage() {
               <div className="my-3 border-t border-dashed border-sunset-200" />
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><Money value={current.bill.subtotal} /></div>
+                {current.bill.serviceFee > 0 && (
+                  <div className="flex justify-between"><span className="text-ink/50">Service fee</span><Money value={current.bill.serviceFee} /></div>
+                )}
                 <div className="flex justify-between"><span className="text-ink/50">Pajak</span><Money value={current.bill.tax} /></div>
                 {current.bill.deposit > 0 && <div className="flex justify-between text-teal-600"><span>Deposit booking</span><Money value={-current.bill.deposit} /></div>}
                 {current.bill.settled > 0 && <div className="flex justify-between text-teal-600"><span>Terbayar</span><Money value={-current.bill.settled} /></div>}
