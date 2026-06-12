@@ -6,7 +6,7 @@ POS kasir, kitchen display, AI agent untuk owner, plus backend lengkap fitur PRO
 ## Stack
 
 - **Next.js 15** (App Router, TypeScript) — frontend + API routes
-- **Prisma + SQLite** (dev) — ganti `datasource` untuk PostgreSQL/MySQL di production
+- **Prisma + PostgreSQL** — production: Neon; dev: Neon branch atau `docker compose up -d`
 - **Tailwind CSS v4** — tema **sunset tetrad** (orange · gold · teal · violet)
 - **Plus Jakarta Sans** (next/font) + **Phosphor Icons**
 - **JWT custom** (jose, httpOnly cookie) — 5 role: `OWNER`, `MANAGER`, `CASHIER`, `KITCHEN`, `CUSTOMER`
@@ -15,10 +15,13 @@ POS kasir, kitchen display, AI agent untuk owner, plus backend lengkap fitur PRO
 ## Menjalankan
 
 ```bash
+cp .env.example .env   # isi DATABASE_URL (Neon branch dev, atau docker compose up -d)
 npm install
 npm run setup     # prisma generate + db push + seed
 npm run dev       # http://localhost:3000
 ```
+
+Deploy production (Vercel + Neon + R2): lihat **docs/DEPLOYMENT.md**.
 
 Akun demo (password semua: `password123`):
 `owner@caferesto.id`, `manager@`, `cashier@`, `kitchen@`, `customer@caferesto.id`

@@ -12,8 +12,21 @@ jobs:
   build-and-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: caferesto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
-      DATABASE_URL: "file:./ci.db"
+      DATABASE_URL: "postgresql://postgres:ci@localhost:5432/caferesto"
       JWT_SECRET: "ci-secret-not-for-production"
       PAYMENT_PROVIDER: "mock"
     steps:

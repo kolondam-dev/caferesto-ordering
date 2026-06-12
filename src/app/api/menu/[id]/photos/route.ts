@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 import { db } from "@/lib/db";
 import { requireRole, isSession } from "@/lib/auth";
 import { ADMIN_ROLES } from "@/lib/constants";
+import { saveUpload } from "@/lib/storage";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -60,9 +59,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
 async function saveFile(menuItemId: string, file: File) {
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-  const dir = path.join(process.cwd(), "uploads", "menu");
-  await mkdir(dir, { recursive: true });
   const name = `${menuItemId}-${Date.now()}.${ext}`;
-  await writeFile(path.join(dir, name), Buffer.from(await file.arrayBuffer()));
-  return `/api/uploads/menu/${name}`;
+  const saved = await saveUpload("menu", name, Buffer.from(await file.arrayBuffer()), file.type);
+  return saved.url;
 }

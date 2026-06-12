@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql" // production: Neon; dev lokal: Neon branch `dev` (lihat docs/DEPLOYMENT.md)
   url      = env("DATABASE_URL")
 }
 
