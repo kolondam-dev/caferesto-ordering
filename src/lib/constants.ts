@@ -15,9 +15,21 @@ export const BOOKING_STATUS = {
   EXPIRED: "EXPIRED",
 } as const;
 
-export const ORDER_STATUS = { OPEN: "OPEN", PAID: "PAID", CANCELED: "CANCELED" } as const;
+export const ORDER_STATUS = {
+  // jalur POS/booking (pay-later)
+  OPEN: "OPEN",
+  PAID: "PAID",
+  CANCELED: "CANCELED",
+  // jalur QR Scan & Serve (pay-first)
+  DRAFT: "DRAFT",
+  AWAITING_PAYMENT: "AWAITING_PAYMENT",
+  AWAITING_VALIDATION: "AWAITING_VALIDATION",
+  IN_KITCHEN: "IN_KITCHEN",
+  EXPIRED: "EXPIRED",
+} as const;
 
 export const ITEM_STATUS = {
+  DRAFT: "DRAFT",
   QUEUED: "QUEUED",
   PREPARING: "PREPARING",
   READY: "READY",

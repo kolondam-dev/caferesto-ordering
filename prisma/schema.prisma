@@ -40,6 +40,7 @@ model Table {
   name     String
   capacity Int
   status   String    @default("OPEN") // OPEN|BOOKED|OCCUPIED
+  code     String?   @unique // slug acak untuk URL QR meja (/t/[code])
   bookings Booking[]
   orders   Order[]
 }
@@ -92,7 +93,12 @@ model Order {
   id             String      @id @default(cuid())
   code           String      @unique
   type           String      @default("DINE_IN") // DINE_IN|TAKEAWAY
-  status         String      @default("OPEN") // OPEN|PAID|CANCELED
+  // Jalur POS/booking: OPEN|PAID|CANCELED (pay-later)
+  // Jalur QR (Scan & Serve, pay-first): DRAFT|AWAITING_PAYMENT|AWAITING_VALIDATION|IN_KITCHEN|PAID|EXPIRED
+  status         String      @default("OPEN")
+  source         String      @default("POS") // QR|POS|BOOKING
+  splitMode      String? // SINGLE|UPFRONT (dipilih host saat konfirmasi, jalur QR)
+  lastActivityAt DateTime    @default(now()) // untuk TTL draft
   tableId        String?
   table          Table?      @relation(fields: [tableId], references: [id])
   bookingId      String?     @unique
@@ -106,20 +112,37 @@ model Order {
   closedAt       DateTime?
   items          OrderItem[]
   payments       Payment[]
+  participants   OrderParticipant[]
+}
+
+// Peserta order kolaboratif jalur QR (guest, tanpa login).
+// Host = pemindai pertama; member hanya mengelola item miliknya.
+model OrderParticipant {
+  id       String      @id @default(cuid())
+  orderId  String
+  order    Order       @relation(fields: [orderId], references: [id])
+  name     String
+  phone    String? // opsional — "struk digital dikirim ke sini jika berminat"
+  isHost   Boolean     @default(false)
+  token    String      @unique // guest id dari cookie, untuk klaim identitas
+  joinedAt DateTime    @default(now())
+  items    OrderItem[]
 }
 
 model OrderItem {
-  id           String   @id @default(cuid())
-  orderId      String
-  order        Order    @relation(fields: [orderId], references: [id])
-  menuItemId   String
-  menuItem     MenuItem @relation(fields: [menuItemId], references: [id])
-  nameSnapshot String
-  price        Int
-  qty          Int
-  notes        String?
-  status       String   @default("QUEUED") // QUEUED|PREPARING|READY|SERVED|CANCELED
-  createdAt    DateTime @default(now())
+  id            String            @id @default(cuid())
+  orderId       String
+  order         Order             @relation(fields: [orderId], references: [id])
+  menuItemId    String
+  menuItem      MenuItem          @relation(fields: [menuItemId], references: [id])
+  participantId String? // atribusi item ke peserta (jalur QR)
+  participant   OrderParticipant? @relation(fields: [participantId], references: [id])
+  nameSnapshot  String
+  price         Int
+  qty           Int
+  notes         String?
+  status        String            @default("QUEUED") // DRAFT|QUEUED|PREPARING|READY|SERVED|CANCELED
+  createdAt     DateTime          @default(now())
 }
 
 // Abstraksi pembayaran — provider: mock|midtrans|cash

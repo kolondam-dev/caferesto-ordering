@@ -3,22 +3,36 @@ import { db } from "@/lib/db";
 import { requireRole, isSession } from "@/lib/auth";
 import { ORDER_STATUS, STAFF_ROLES, TABLE_STATUS } from "@/lib/constants";
 import { getOrderDue } from "@/lib/payments/settle";
+import { resolveOrderAccess } from "@/lib/order-access";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, ctx: Ctx) {
-  const guard = await requireRole();
-  if (!isSession(guard)) return guard;
   const { id } = await ctx.params;
   const order = await db.order.findUnique({
     where: { id },
-    include: { table: true, items: true, payments: true, booking: { select: { code: true, feeAmount: true } } },
+    include: {
+      table: { select: { name: true, code: true } },
+      items: true,
+      payments: true,
+      booking: { select: { code: true, feeAmount: true } },
+      participants: { orderBy: { joinedAt: "asc" } },
+    },
   });
   if (!order) return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
-  if (!STAFF_ROLES.includes(guard.role) && order.customerId && order.customerId !== guard.sub)
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const access = await resolveOrderAccess(order);
+  if (!access.canAccess) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   const { subtotal, tax, total, settled, deposit, due } = await getOrderDue(id);
-  return NextResponse.json({ order, bill: { subtotal, tax, total, settled, deposit, due } });
+  return NextResponse.json({
+    order: {
+      ...order,
+      participants: order.participants.map((p) => ({ id: p.id, name: p.name, isHost: p.isHost })),
+    },
+    bill: { subtotal, tax, total, settled, deposit, due },
+    me: access.participant ? { participantId: access.participant.id, isHost: access.participant.isHost } : null,
+  });
 }
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
