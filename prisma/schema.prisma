@@ -58,10 +58,24 @@ model MenuItem {
   description String?
   price       Int
   imageUrl    String?
+  prepMinutes Int? // estimasi lama pembuatan (tampil di kartu menu)
   available   Boolean      @default(true)
   categoryId  String
   category    MenuCategory @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
+  photos      MenuPhoto[]
+}
+
+// Katalog multi-foto per menu: satu foto utama (kartu/list), sisanya thumbnail.
+// Fondasi untuk tema dinamis "buku menu" (konfigurasi tema = modul PRO Menu).
+model MenuPhoto {
+  id         String   @id @default(cuid())
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  url        String
+  isPrimary  Boolean  @default(false)
+  sort       Int      @default(0)
+  createdAt  DateTime @default(now())
 }
 
 // Lifecycle booking:

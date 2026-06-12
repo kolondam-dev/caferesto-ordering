@@ -18,6 +18,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       ...(body.price !== undefined && { price: Number(body.price) }),
       ...(body.available !== undefined && { available: Boolean(body.available) }),
       ...(body.categoryId !== undefined && { categoryId: body.categoryId }),
+      ...(body.prepMinutes !== undefined && { prepMinutes: body.prepMinutes ? Number(body.prepMinutes) : null }),
     },
   });
   return NextResponse.json({ item });

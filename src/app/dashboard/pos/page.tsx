@@ -166,6 +166,7 @@ export default function POSPage() {
   const [tables, setTables] = useState<TableT[] | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [current, setCurrent] = useState<OrderData | null>(null);
+  const [preview, setPreview] = useState<TableT | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -182,15 +183,26 @@ export default function POSPage() {
     api<{ categories: Category[] }>("/api/menu").then((d) => setCategories(d.categories));
   }, [loadTables]);
 
-  async function openTable(t: TableT) {
+  // Klik meja hanya membuka pratinjau — order baru dibuat lewat tombol eksplisit,
+  // mencegah order tak sengaja saat berpindah-pindah meja.
+  function selectTable(t: TableT) {
     setMsg("");
-    if (t.orders[0]) return loadOrder(t.orders[0].id);
+    setPreview(t);
+  }
+
+  async function continueOrder(t: TableT) {
+    setPreview(null);
+    await loadOrder(t.orders[0].id);
+  }
+
+  async function openNewOrder(t: TableT) {
     setBusy(true);
     try {
       const { order } = await api<{ order: { id: string } }>("/api/orders", {
         method: "POST",
         body: { type: "DINE_IN", tableId: t.id },
       });
+      setPreview(null);
       await loadOrder(order.id);
       loadTables();
     } catch (e) {
@@ -255,9 +267,9 @@ export default function POSPage() {
             {tables.map((t) => (
               <button
                 key={t.id}
-                onClick={() => openTable(t)}
+                onClick={() => selectTable(t)}
                 className={`rounded-xl border p-2 text-center transition-colors ${
-                  current?.order.table?.name === t.name
+                  preview?.id === t.id || current?.order.table?.name === t.name
                     ? "border-sunset-500 bg-sunset-500 text-white"
                     : t.status === "OCCUPIED"
                       ? "border-sunset-200 bg-sunset-50"
@@ -298,7 +310,34 @@ export default function POSPage() {
 
         {/* Order berjalan */}
         <Card className="p-4">
-          {!current ? (
+          {preview ? (
+            <div className="py-4">
+              <h2 className="font-extrabold">{preview.name}</h2>
+              <p className="mt-0.5 text-sm text-ink/55">
+                Status: <Badge status={preview.status} /> · kapasitas {preview.capacity}
+              </p>
+              {preview.status === "BOOKED" && (
+                <p className="mt-2 rounded-xl bg-gold-50 p-2.5 text-xs text-gold-900">
+                  Meja ini sedang dibooking — buka order hanya bila tamu booking sudah datang.
+                </p>
+              )}
+              <div className="mt-4 space-y-2">
+                {preview.orders[0] ? (
+                  <Button full onClick={() => continueOrder(preview)} disabled={busy}>
+                    Lanjutkan Order Berjalan
+                  </Button>
+                ) : (
+                  <Button full onClick={() => openNewOrder(preview)} disabled={busy}>
+                    Buka Order Baru
+                  </Button>
+                )}
+                <Button variant="outline" full onClick={() => setPreview(null)}>
+                  Batal
+                </Button>
+              </div>
+              {msg && <p className="mt-2 text-sm font-semibold text-red-600">{msg}</p>}
+            </div>
+          ) : !current ? (
             <p className="py-10 text-center text-sm text-ink/40">Pilih meja atau buat takeaway untuk mulai.</p>
           ) : (
             <>

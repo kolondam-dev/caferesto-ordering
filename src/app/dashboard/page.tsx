@@ -17,6 +17,7 @@ type Report = {
 
 export default function DashboardHome() {
   const [report, setReport] = useState<Report | null>(null);
+  const [selected, setSelected] = useState("today");
 
   useEffect(() => {
     const load = () => api<{ report: Report }>("/api/reports/summary").then((d) => setReport(d.report));
@@ -31,10 +32,10 @@ export default function DashboardHome() {
     <div className="mx-auto max-w-6xl">
       <PageTitle title="Ringkasan" subtitle="Kondisi operasional real-time" />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat icon={<CurrencyCircleDollar size={22} weight="fill" />} tone="bg-sunset-500" label="Omzet Hari Ini" value={formatIDR(report.salesToday.revenue)} sub={`${report.salesToday.orders} order lunas`} />
-        <Stat icon={<CurrencyCircleDollar size={22} weight="fill" />} tone="bg-violet-700" label="Omzet 7 Hari" value={formatIDR(report.salesWeek.revenue)} sub={`${report.salesWeek.orders} order`} />
-        <Stat icon={<Receipt size={22} weight="fill" />} tone="bg-teal-500" label="Order Terbuka" value={String(report.openOrders)} sub="sedang berjalan" />
-        <Stat icon={<CalendarCheck size={22} weight="fill" />} tone="bg-gold-400" label="Booking Hari Ini" value={String(report.bookingsToday.length)} sub="aktif" />
+        <Stat id="today" selected={selected} onSelect={setSelected} Icon={CurrencyCircleDollar} tone="text-sunset-500" label="Omzet Hari Ini" value={formatIDR(report.salesToday.revenue)} sub={`${report.salesToday.orders} order lunas`} />
+        <Stat id="week" selected={selected} onSelect={setSelected} Icon={CurrencyCircleDollar} tone="text-violet-700" label="Omzet 7 Hari" value={formatIDR(report.salesWeek.revenue)} sub={`${report.salesWeek.orders} order`} />
+        <Stat id="open" selected={selected} onSelect={setSelected} Icon={Receipt} tone="text-teal-600" label="Order Terbuka" value={String(report.openOrders)} sub="sedang berjalan" />
+        <Stat id="booking" selected={selected} onSelect={setSelected} Icon={CalendarCheck} tone="text-gold-600" label="Booking Hari Ini" value={String(report.bookingsToday.length)} sub="aktif" />
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-3">
@@ -96,13 +97,36 @@ export default function DashboardHome() {
   );
 }
 
-function Stat({ icon, tone, label, value, sub }: { icon: React.ReactNode; tone: string; label: string; value: string; sub: string }) {
+/**
+ * Metric card: ikon tanpa background (size 32), divider memisahkan ikon dan teks.
+ * State selected ditandai ring aksen + indikator garis bawah — tanpa mengubah
+ * background maupun ukuran kartu.
+ */
+function Stat({
+  id, selected, onSelect, Icon, tone, label, value, sub,
+}: {
+  id: string; selected: string; onSelect: (id: string) => void;
+  Icon: React.ElementType; tone: string; label: string; value: string; sub: string;
+}) {
+  const active = selected === id;
   return (
-    <Card className="p-4">
-      <div className={`mb-2 inline-flex h-9 w-9 items-center justify-center rounded-xl text-white ${tone}`}>{icon}</div>
-      <p className="text-xs font-semibold text-ink/50">{label}</p>
-      <p className="truncate text-lg font-extrabold">{value}</p>
-      <p className="text-[11px] text-ink/40">{sub}</p>
-    </Card>
+    <button onClick={() => onSelect(id)} className="text-left" aria-pressed={active}>
+      <Card
+        className={`relative p-4 transition-shadow ${
+          active ? "ring-2 ring-sunset-400 ring-offset-2 ring-offset-cream" : "hover:ring-1 hover:ring-sunset-200"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <Icon size={32} weight={active ? "fill" : "duotone"} className={`shrink-0 ${tone}`} />
+          <div className="h-10 w-px bg-sunset-100" />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-ink/50">{label}</p>
+            <p className="truncate text-lg font-extrabold">{value}</p>
+            <p className="text-[11px] text-ink/40">{sub}</p>
+          </div>
+        </div>
+        {active && <span className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-sunset-500" />}
+      </Card>
+    </button>
   );
 }
