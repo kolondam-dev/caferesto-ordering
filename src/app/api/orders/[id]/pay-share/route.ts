@@ -39,9 +39,11 @@ async function handlePost(req: NextRequest, ctx: Ctx) {
     amount = due;
     participantId = access.participant?.id ?? null;
     description = `Ambil alih sisa tagihan ${order.code}`;
-  } else if (order.splitMode === "SINGLE") {
+  } else if (order.splitMode === "SINGLE" || order.splitMode === "FULL") {
+    // FULL = pembayaran biasa (1 QR), SINGLE = split akhir (1 QR + rincian di struk).
+    // Keduanya dibayar host/order holder.
     if (!access.isController)
-      return NextResponse.json({ error: "Split akhir: pembayaran dilakukan oleh host" }, { status: 403 });
+      return NextResponse.json({ error: "Pembayaran dilakukan oleh pemegang order" }, { status: 403 });
     const { due } = await getOrderDue(id);
     if (due <= 0) return NextResponse.json({ error: "Tagihan sudah lunas" }, { status: 400 });
     amount = due;

@@ -93,7 +93,7 @@ export default function MenuAdminPage() {
                   selectedId === i.id ? "border-teal-500 ring-2 ring-teal-200" : "border-sunset-100 hover:border-teal-300"
                 } ${!i.available ? "opacity-60" : ""}`}
               >
-                <div className="relative h-20 w-full">
+                <div className="relative h-20 w-full overflow-hidden">
                   <MenuImage photos={i.photos} alt={i.name} />
                   {!i.available && <span className="soldout-ribbon">SOLD OUT</span>}
                 </div>
@@ -119,7 +119,7 @@ export default function MenuAdminPage() {
           ) : (
             <>
               <div className="mb-3 overflow-hidden rounded-xl">
-                <div className="relative h-40 w-full">
+                <div className="relative h-40 w-full overflow-hidden">
                   <MenuImage photos={selected.photos} alt={selected.name} />
                   {!selected.available && <span className="soldout-ribbon">SOLD OUT</span>}
                 </div>
