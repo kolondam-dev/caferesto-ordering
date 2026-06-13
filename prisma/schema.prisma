@@ -13,12 +13,14 @@ datasource db {
 
 // ───────────────────────── Core ─────────────────────────
 
+// Staff (OWNER/MANAGER/CASHIER/KITCHEN) login dengan email+password.
+// Customer login dengan no HP + verifikasi WA OTP (tanpa password).
 model User {
   id           String       @id @default(cuid())
   name         String
-  email        String       @unique
-  phone        String?
-  passwordHash String
+  email        String?      @unique
+  phone        String?      @unique
+  passwordHash String? // null untuk customer (auth via WA OTP)
   role         String       @default("CUSTOMER") // OWNER|MANAGER|CASHIER|KITCHEN|CUSTOMER
   baseSalary   Int          @default(0)
   createdAt    DateTime     @default(now())
@@ -27,6 +29,17 @@ model User {
   attendances  Attendance[]
   payslips     Payslip[]
   chats        ChatMessage[]
+}
+
+// OTP verifikasi WhatsApp untuk login/registrasi customer (mock-ready).
+// Satu kode aktif per nomor (upsert by phone).
+model WaOtp {
+  phone     String   @id
+  code      String
+  name      String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
 }
 
 model Setting {

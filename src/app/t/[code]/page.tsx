@@ -160,7 +160,7 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
             <p className="text-xs font-bold">Sering mampir? Jadi member, gratis kok 😉</p>
             <p className="text-[11px] text-ink/50">Riwayat pesanan tersimpan, booking meja, & promo duluan.</p>
           </div>
-          <a href={`/register?next=/t/${code}`} className="shrink-0 text-xs font-extrabold text-teal-700 underline">
+          <a href={`/login?next=/t/${code}`} className="shrink-0 text-xs font-extrabold text-teal-700 underline">
             Daftar
           </a>
         </Card>

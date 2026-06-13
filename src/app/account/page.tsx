@@ -8,7 +8,7 @@ import { api } from "@/lib/client";
 import { Button, Card, Spinner } from "@/components/ui";
 import CustomerShell from "@/components/CustomerShell";
 
-type User = { sub: string; name: string; email: string; role: string };
+type User = { sub: string; name: string; email: string; role: string; phone?: string };
 
 export default function AccountPage() {
   const router = useRouter();
@@ -40,7 +40,7 @@ export default function AccountPage() {
             <UserCircle size={48} weight="fill" className="text-sunset-400" />
             <div>
               <p className="font-extrabold">{user.name}</p>
-              <p className="text-sm text-ink/50">{user.email}</p>
+              <p className="text-sm text-ink/50">{user.email || user.phone}</p>
               <p className="text-[11px] font-bold text-violet-700">{user.role}</p>
             </div>
           </div>

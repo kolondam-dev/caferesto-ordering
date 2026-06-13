@@ -29,7 +29,7 @@ export async function POST(_req: NextRequest, ctx: Ctx) {
     ref,
     amount: booking.feeAmount,
     description: `Booking fee ${booking.code}`,
-    customer: { name: booking.customer.name, email: booking.customer.email },
+    customer: { name: booking.customer.name, email: booking.customer.email ?? undefined },
   });
 
   const payment = await db.payment.create({

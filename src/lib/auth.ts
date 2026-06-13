@@ -6,13 +6,16 @@ import type { Role } from "./constants";
 const secret = () => new TextEncoder().encode(process.env.JWT_SECRET ?? "dev-secret");
 export const AUTH_COOKIE = "cr_token";
 
-export type Session = { sub: string; name: string; email: string; role: Role };
+export type Session = { sub: string; name: string; email: string; role: Role; phone?: string };
 
-export async function signToken(payload: Session) {
+export const STAFF_TOKEN_AGE = 7 * 86400; // 7 hari
+export const CUSTOMER_TOKEN_AGE = 90 * 86400; // 90 hari — customer cookie jangka panjang
+
+export async function signToken(payload: Session, expiresInSeconds = STAFF_TOKEN_AGE) {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime(Math.floor(Date.now() / 1000) + expiresInSeconds)
     .sign(secret());
 }
 

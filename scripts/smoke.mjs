@@ -160,6 +160,22 @@ ok(soldItem && soldItem.available === false, "menu tampil sold out di publik");
 r = await cashier(`/api/menu/${menuItemId}/availability`, { method: "PATCH", body: { available: true } });
 ok(r.status === 200 && r.data.item.available === true, "kasir set menu ready lagi");
 
+// ── Auth customer via WA OTP (mock) ─────────────────────────────
+const cust = makeClient();
+r = await cust("/api/auth/customer/request", { method: "POST", body: { name: "Wati", phone: "081298765432" } });
+ok(r.status === 200 && r.data.sent && r.data.devCode, "customer minta OTP WA (mock)");
+const otp = r.data.devCode;
+r = await cust("/api/auth/customer/verify", { method: "POST", body: { phone: "081298765432", code: "000000" } });
+ok(r.status === 400, "OTP salah ditolak");
+r = await cust("/api/auth/customer/verify", { method: "POST", body: { phone: "081298765432", code: otp } });
+ok(r.status === 200 && r.data.user.role === "CUSTOMER" && r.data.user.phone === "6281298765432", "verify OTP → login customer (phone ternormalisasi)");
+r = await cust("/api/auth/me");
+ok(r.data.user && r.data.user.role === "CUSTOMER", "sesi customer aktif");
+
+// Staff tidak bisa login lewat verify customer; customer tidak punya password
+r = await anon("/api/auth/login", { method: "POST", body: { email: "owner@caferesto.id", password: "password123" } });
+ok(r.status === 200 && r.data.user.role === "OWNER", "staff tetap login via email+password");
+
 // ── Guard role ───────────────────────────────────────────────────
 r = await guestA("/api/pro/inventory");
 ok(r.status === 401 || r.status === 403, "guest tidak bisa akses modul PRO");
