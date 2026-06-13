@@ -26,6 +26,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ orders, ttlMinutes: settings.draftTtlMinutes });
   }
 
+  // ?board=takeaway → papan takeaway aktif untuk kasir (OPEN, atau PAID yang
+  // belum semua tersaji), terbaru di depan.
+  if (req.nextUrl.searchParams.get("board") === "takeaway") {
+    if (!STAFF_ROLES.includes(guard.role))
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const list = await db.order.findMany({
+      where: { type: "TAKEAWAY", status: { in: [ORDER_STATUS.OPEN, ORDER_STATUS.PAID] } },
+      orderBy: { createdAt: "desc" },
+      include: { items: { select: { status: true } } },
+      take: 50,
+    });
+    // Sembunyikan takeaway yang sudah lunas & seluruh itemnya tersaji (selesai)
+    const orders = list.filter((o) => {
+      if (o.status === ORDER_STATUS.OPEN) return true;
+      const active = o.items.filter((i) => i.status !== "CANCELED");
+      return active.length === 0 || !active.every((i) => i.status === "SERVED");
+    });
+    return NextResponse.json({ orders });
+  }
+
   const status = req.nextUrl.searchParams.get("status") ?? undefined;
   const mineOnly = !STAFF_ROLES.includes(guard.role);
   const orders = await db.order.findMany({
@@ -96,13 +116,17 @@ export async function POST(req: NextRequest) {
     tableId = table.id;
   }
 
+  const CHANNELS = ["WALKIN", "SHOPEEFOOD", "GOFOOD", "WA"];
+  const channel = type === "TAKEAWAY" && CHANNELS.includes(body.channel) ? body.channel : type === "TAKEAWAY" ? "WALKIN" : null;
   const order = await db.order.create({
     data: {
       code: shortCode("ORD"),
       type,
       tableId,
       customerId: guard.role === "CUSTOMER" ? guard.sub : null,
-      customerName: body.customerName ?? guard.name,
+      customerName: body.customerName?.trim() || guard.name,
+      customerPhone: type === "TAKEAWAY" ? (body.customerPhone?.trim() || null) : null,
+      channel,
       taxPercent: settings.taxPercent,
       serviceFeeType: settings.serviceFeeEnabled ? settings.serviceFeeType : null,
       serviceFeeValue: settings.serviceFeeEnabled ? settings.serviceFeeValue : 0,

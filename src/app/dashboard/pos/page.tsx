@@ -6,8 +6,9 @@ import {
   Receipt as ReceiptIcon, SealCheck, WarningCircle,
 } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
-import { Badge, Button, Card, Money, PageTitle, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Input, Label, Money, PageTitle, Spinner } from "@/components/ui";
 import MenuImage from "@/components/MenuImage";
+import Sheet from "@/components/Sheet";
 
 const TableIcon = PicnicTable ?? Rectangle; // fallback bila ikon meja tak tersedia
 
@@ -155,8 +156,25 @@ function ValidationQueue({ onChanged }: { onChanged: () => void }) {
   );
 }
 
-type TableOrder = { id: string; code: string; status: string; items: { status: string }[] };
+type TableOrder = { id: string; code: string; status: string; createdAt: string; items: { status: string }[] };
 type TableT = { id: string; name: string; capacity: number; status: string; orders: TableOrder[] };
+type TakeawayOrder = {
+  id: string; code: string; status: string; createdAt: string;
+  customerName?: string | null; channel?: string | null;
+  items: { status: string }[];
+};
+
+const CHANNEL_LABEL: Record<string, string> = {
+  WALKIN: "Walk-in", SHOPEEFOOD: "ShopeeFood", GOFOOD: "GoFood", WA: "WhatsApp",
+};
+
+function elapsedLabel(iso: string) {
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return "baru";
+  if (m < 60) return `${m} mnt`;
+  const h = Math.floor(m / 60);
+  return `${h}j ${m % 60}m`;
+}
 type MenuItem = {
   id: string; name: string; price: number; available: boolean;
   photos?: { url: string; isPrimary: boolean }[];
@@ -184,6 +202,9 @@ export default function POSPage() {
   const [activeCat, setActiveCat] = useState("all");
   const [search, setSearch] = useState("");
   const [menuTab, setMenuTab] = useState<"order" | "stock">("order");
+  const [boardMode, setBoardMode] = useState<"dinein" | "takeaway">("dinein");
+  const [takeaways, setTakeaways] = useState<TakeawayOrder[]>([]);
+  const [newTakeawayOpen, setNewTakeawayOpen] = useState(false);
   const [printerReady, setPrinterReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -196,6 +217,10 @@ export default function POSPage() {
     () => api<{ tables: TableT[] }>("/api/tables").then((d) => setTables(d.tables)),
     []
   );
+  const loadTakeaways = useCallback(
+    () => api<{ orders: TakeawayOrder[] }>("/api/orders?board=takeaway").then((d) => setTakeaways(d.orders)).catch(() => {}),
+    []
+  );
   const loadOrder = useCallback(async (orderId: string) => {
     setCurrent(await api<OrderData>(`/api/orders/${orderId}`));
   }, []);
@@ -203,16 +228,20 @@ export default function POSPage() {
   useEffect(() => {
     loadTables();
     loadMenu();
+    loadTakeaways();
     api<{ settings: { printerHost: string } }>("/api/settings")
       .then((d) => setPrinterReady(!!d.settings.printerHost))
       .catch(() => {});
-  }, [loadTables, loadMenu]);
+  }, [loadTables, loadMenu, loadTakeaways]);
 
-  // Refresh strip meja berkala (status & progres penyajian)
+  // Refresh strip meja & papan takeaway berkala (status & progres penyajian)
   useEffect(() => {
-    const t = setInterval(loadTables, 10000);
+    const t = setInterval(() => {
+      loadTables();
+      loadTakeaways();
+    }, 10000);
     return () => clearInterval(t);
-  }, [loadTables]);
+  }, [loadTables, loadTakeaways]);
 
   // Order lunas yang menunggu dibersihkan: pantau progres penyajian live
   const currentId = current?.order.id;
@@ -290,12 +319,19 @@ export default function POSPage() {
     }
   }
 
-  async function openTakeaway() {
+  async function createTakeaway(payload: { customerName: string; customerPhone: string; channel: string }) {
     setBusy(true);
     try {
-      const { order } = await api<{ order: { id: string } }>("/api/orders", { method: "POST", body: { type: "TAKEAWAY" } });
+      const { order } = await api<{ order: { id: string } }>("/api/orders", {
+        method: "POST",
+        body: { type: "TAKEAWAY", ...payload },
+      });
+      setNewTakeawayOpen(false);
       setPreview(null);
       await loadOrder(order.id);
+      loadTakeaways();
+    } catch (e) {
+      setMsg((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -345,6 +381,7 @@ export default function POSPage() {
       await api(`/api/orders/${current.order.id}/pay`, { method: "POST", body: { method } });
       await loadOrder(current.order.id);
       loadTables();
+      loadTakeaways();
       setMsg("Pembayaran berhasil ✅");
     } catch (e) {
       setMsg((e as Error).message);
@@ -358,6 +395,7 @@ export default function POSPage() {
     await api(`/api/orders/${current.order.id}`, { method: "PATCH", body: { action: "cancel" } });
     setCurrent(null);
     loadTables();
+    loadTakeaways();
   }
 
   async function printThermal() {
@@ -383,31 +421,87 @@ export default function POSPage() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <PageTitle title="POS Kasir" subtitle="Kelola order dine-in & takeaway" action={<Button variant="teal" onClick={openTakeaway} disabled={busy}><Plus size={16} /> Takeaway</Button>} />
+      <PageTitle
+        title="POS Kasir"
+        subtitle="Kelola order dine-in & takeaway"
+        action={
+          <div className="flex gap-1.5 rounded-xl bg-cream p-1">
+            <button
+              onClick={() => { setBoardMode("dinein"); setMsg(""); }}
+              className={`rounded-lg px-3 py-1.5 text-sm font-bold ${boardMode === "dinein" ? "bg-teal-600 text-white" : "text-ink/55"}`}
+            >
+              Dine-in
+            </button>
+            <button
+              onClick={() => { setBoardMode("takeaway"); setMsg(""); }}
+              className={`rounded-lg px-3 py-1.5 text-sm font-bold ${boardMode === "takeaway" ? "bg-teal-600 text-white" : "text-ink/55"}`}
+            >
+              Takeaway
+            </button>
+          </div>
+        }
+      />
       <ValidationQueue onChanged={loadTables} />
       <AttentionQueue />
 
-      {/* Strip meja horizontal */}
-      <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-        {tables.map((t) => {
-          const active = preview?.id === t.id || current?.order.table?.name === t.name;
-          return (
-            <button
-              key={t.id}
-              onClick={() => selectTable(t)}
-              className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 transition-colors ${
-                active ? "border-teal-600 bg-teal-600 text-white" : TONE[t.status] ?? "border-sunset-100 bg-white"
-              }`}
-            >
-              <TableIcon size={20} weight={t.status === "OPEN" && !active ? "regular" : "fill"} />
-              <span className="text-left">
-                <span className="block text-xs font-extrabold leading-tight">{t.name}</span>
-                <span className={`block text-[9px] leading-tight ${active ? "text-white/80" : "opacity-60"}`}>{t.status}</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {/* Strip: meja (dine-in) atau papan takeaway */}
+      {boardMode === "dinein" ? (
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+          {tables.map((t) => {
+            const active = preview?.id === t.id || current?.order.table?.name === t.name;
+            const ord = t.orders[0];
+            const occupied = t.status === "OCCUPIED";
+            return (
+              <button
+                key={t.id}
+                onClick={() => selectTable(t)}
+                className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 transition-colors ${
+                  active ? "border-teal-600 bg-teal-600 text-white" : TONE[t.status] ?? "border-sunset-100 bg-white"
+                }`}
+              >
+                <TableIcon size={20} weight={t.status === "OPEN" && !active ? "regular" : "fill"} />
+                <span className="text-left">
+                  <span className="block text-xs font-extrabold leading-tight">{t.name}</span>
+                  <span className={`block text-[9px] leading-tight ${active ? "text-white/80" : "opacity-60"}`}>
+                    {occupied && ord ? `${ord.status === "PAID" ? "lunas" : "isi"} · ${elapsedLabel(ord.createdAt)}` : t.status}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+          <button
+            onClick={() => setNewTakeawayOpen(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-xl border border-dashed border-teal-400 px-3 py-2 text-sm font-bold text-teal-700"
+          >
+            <Plus size={18} weight="bold" /> Takeaway Baru
+          </button>
+          {takeaways.map((o) => {
+            const active = current?.order.id === o.id;
+            const served = o.items.filter((i) => i.status === "SERVED").length;
+            const total = o.items.filter((i) => i.status !== "CANCELED").length;
+            return (
+              <button
+                key={o.id}
+                onClick={() => { setPreview(null); loadOrder(o.id); }}
+                className={`flex shrink-0 flex-col items-start rounded-xl border px-3 py-2 transition-colors ${
+                  active ? "border-teal-600 bg-teal-600 text-white" : "border-sunset-200 bg-white"
+                }`}
+              >
+                <span className="text-xs font-extrabold leading-tight">{o.customerName || o.code}</span>
+                <span className={`text-[9px] leading-tight ${active ? "text-white/80" : "text-ink/50"}`}>
+                  {CHANNEL_LABEL[o.channel ?? "WALKIN"] ?? o.channel} · {o.status === "PAID" ? `lunas ${served}/${total}` : "berjalan"} · {elapsedLabel(o.createdAt)}
+                </span>
+              </button>
+            );
+          })}
+          {takeaways.length === 0 && (
+            <span className="flex items-center px-2 text-xs text-ink/40">Belum ada takeaway aktif.</span>
+          )}
+        </div>
+      )}
 
       {/* Menu 70% | kalkulasi 30% */}
       <div className="grid gap-4 lg:grid-cols-[7fr_3fr]">
@@ -665,7 +759,67 @@ export default function POSPage() {
           )}
         </Card>
       </div>
+
+      {newTakeawayOpen && <NewTakeawaySheet busy={busy} onClose={() => setNewTakeawayOpen(false)} onCreate={createTakeaway} />}
     </div>
+  );
+}
+
+function NewTakeawaySheet({
+  busy, onClose, onCreate,
+}: {
+  busy: boolean;
+  onClose: () => void;
+  onCreate: (p: { customerName: string; customerPhone: string; channel: string }) => void;
+}) {
+  const [customerName, setName] = useState("");
+  const [customerPhone, setPhone] = useState("");
+  const [channel, setChannel] = useState("WALKIN");
+  const channels = [
+    { v: "WALKIN", label: "Walk-in" },
+    { v: "SHOPEEFOOD", label: "ShopeeFood" },
+    { v: "GOFOOD", label: "GoFood" },
+    { v: "WA", label: "WhatsApp" },
+  ];
+  return (
+    <Sheet title="Takeaway Baru" onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onCreate({ customerName, customerPhone, channel });
+        }}
+        className="space-y-3"
+      >
+        <div>
+          <Label>Nama pemesan</Label>
+          <Input value={customerName} onChange={(e) => setName(e.target.value)} required placeholder="cth. Budi" autoFocus />
+        </div>
+        <div>
+          <Label>No. HP (opsional)</Label>
+          <Input value={customerPhone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" inputMode="numeric" />
+        </div>
+        <div>
+          <Label>Saluran</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {channels.map((c) => (
+              <button
+                type="button"
+                key={c.v}
+                onClick={() => setChannel(c.v)}
+                className={`rounded-xl border-2 py-2 text-sm font-bold ${
+                  channel === c.v ? "border-teal-500 bg-teal-50 text-teal-800" : "border-sunset-100 bg-white text-ink/60"
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <Button type="submit" variant="teal" full disabled={busy || !customerName.trim()}>
+          {busy ? "Membuat…" : "Buat Order Takeaway"}
+        </Button>
+      </form>
+    </Sheet>
   );
 }
 
