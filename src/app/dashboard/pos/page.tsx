@@ -164,6 +164,13 @@ type TakeawayOrder = {
   items: { status: string }[];
 };
 
+type TodayOrder = {
+  id: string; code: string; type: string; status: string; createdAt: string;
+  customerName?: string | null; channel?: string | null;
+  table?: { name: string } | null;
+  bill: { total: number };
+};
+
 const CHANNEL_LABEL: Record<string, string> = {
   WALKIN: "Walk-in", SHOPEEFOOD: "ShopeeFood", GOFOOD: "GoFood", WA: "WhatsApp",
 };
@@ -201,7 +208,8 @@ export default function POSPage() {
   const [preview, setPreview] = useState<TableT | null>(null);
   const [activeCat, setActiveCat] = useState("all");
   const [search, setSearch] = useState("");
-  const [menuTab, setMenuTab] = useState<"order" | "stock">("order");
+  const [menuTab, setMenuTab] = useState<"order" | "stock" | "history">("order");
+  const [todayOrders, setTodayOrders] = useState<TodayOrder[]>([]);
   const [boardMode, setBoardMode] = useState<"dinein" | "takeaway">("dinein");
   const [takeaways, setTakeaways] = useState<TakeawayOrder[]>([]);
   const [newTakeawayOpen, setNewTakeawayOpen] = useState(false);
@@ -221,6 +229,12 @@ export default function POSPage() {
     () => api<{ orders: TakeawayOrder[] }>("/api/orders?board=takeaway").then((d) => setTakeaways(d.orders)).catch(() => {}),
     []
   );
+  const loadTodayHistory = useCallback(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return api<{ orders: TodayOrder[] }>(`/api/orders/history?type=ALL&from=${today}&to=${today}`)
+      .then((d) => setTodayOrders(d.orders))
+      .catch(() => {});
+  }, []);
   const loadOrder = useCallback(async (orderId: string) => {
     setCurrent(await api<OrderData>(`/api/orders/${orderId}`));
   }, []);
@@ -251,6 +265,11 @@ export default function POSPage() {
     const t = setInterval(() => loadOrder(currentId), 6000);
     return () => clearInterval(t);
   }, [currentId, currentStatus, loadOrder]);
+
+  // Muat riwayat hari ini saat tab Riwayat dibuka
+  useEffect(() => {
+    if (menuTab === "history") loadTodayHistory();
+  }, [menuTab, loadTodayHistory]);
 
   // Pratinjau meja selalu pakai data tabel terbaru (bukan snapshot saat klik)
   const previewLive = preview ? tables?.find((t) => t.id === preview.id) ?? preview : null;
@@ -506,11 +525,50 @@ export default function POSPage() {
       {/* Menu 70% | kalkulasi 30% */}
       <div className="grid gap-4 lg:grid-cols-[7fr_3fr]">
         <Card className="p-3">
-          {/* Tab: Pesan vs Stok (kelola sold out) */}
+          {/* Tab: Pesan / Stok / Riwayat hari ini */}
           <div className="mb-2 flex gap-1.5">
             <TabBtn active={menuTab === "order"} onClick={() => setMenuTab("order")}>Pesan</TabBtn>
             <TabBtn active={menuTab === "stock"} onClick={() => setMenuTab("stock")}>Stok Menu</TabBtn>
+            <TabBtn active={menuTab === "history"} onClick={() => setMenuTab("history")}>Riwayat</TabBtn>
           </div>
+
+          {menuTab === "history" ? (
+            <div className="max-h-[62dvh] divide-y divide-sunset-50 overflow-y-auto">
+              <p className="px-1 pb-2 text-xs text-ink/50">
+                Order hari ini ({todayOrders.length}) — klik untuk lihat detail.
+              </p>
+              {todayOrders.map((o) => (
+                <button
+                  key={o.id}
+                  onClick={() => { setPreview(null); loadOrder(o.id); }}
+                  className={`flex w-full items-center justify-between gap-2 px-2 py-2 text-left transition-colors ${
+                    current?.order.id === o.id ? "bg-teal-50" : "hover:bg-sunset-50/50"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold">
+                      {o.code}
+                      <span className="ml-1.5 font-normal text-ink/50">
+                        {o.table?.name ?? (o.channel ? CHANNEL_LABEL[o.channel] : "Takeaway")}
+                        {o.customerName ? ` · ${o.customerName}` : ""}
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-ink/45">
+                      {new Date(o.createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })} · {o.type === "TAKEAWAY" ? "Takeaway" : "Dine-in"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-0.5">
+                    <Money value={o.bill.total} className="text-sm font-bold" />
+                    <Badge status={o.status} />
+                  </div>
+                </button>
+              ))}
+              {todayOrders.length === 0 && (
+                <p className="py-8 text-center text-sm text-ink/40">Belum ada order hari ini.</p>
+              )}
+            </div>
+          ) : (
+          <>
           <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/35" />
@@ -610,6 +668,8 @@ export default function POSPage() {
               <p className="col-span-full py-8 text-center text-sm text-ink/40">Tidak ada menu yang cocok.</p>
             )}
           </div>
+          </>
+          )}
         </Card>
 
         {/* Kalkulasi order */}

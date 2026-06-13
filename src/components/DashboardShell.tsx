@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   SquaresFour, Storefront, CookingPot, CalendarCheck, Table, ForkKnife, GearSix,
-  ChatCircleDots, Package, Truck, Invoice, Calculator, ClockUser, Money as MoneyIcon, SignOut, Crown,
+  ChatCircleDots, Package, Truck, Invoice, Calculator, ClockUser, Money as MoneyIcon, SignOut, Crown, ClockCounterClockwise,
 } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import ConnectionBanner from "@/components/ConnectionBanner";
@@ -14,6 +14,7 @@ type Item = { href: string; label: string; icon: React.ElementType; pro?: boolea
 const CORE: Item[] = [
   { href: "/dashboard", label: "Ringkasan", icon: SquaresFour },
   { href: "/dashboard/pos", label: "POS Kasir", icon: Storefront, roles: ["OWNER", "MANAGER", "CASHIER"] },
+  { href: "/dashboard/history", label: "Riwayat Order", icon: ClockCounterClockwise, roles: ["OWNER", "MANAGER", "CASHIER"] },
   { href: "/dashboard/kitchen", label: "Kitchen", icon: CookingPot },
   { href: "/dashboard/bookings", label: "Booking", icon: CalendarCheck },
   { href: "/dashboard/tables", label: "Meja", icon: Table },
