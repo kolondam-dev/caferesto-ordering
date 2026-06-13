@@ -19,6 +19,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       ...(body.available !== undefined && { available: Boolean(body.available) }),
       ...(body.categoryId !== undefined && { categoryId: body.categoryId }),
       ...(body.prepMinutes !== undefined && { prepMinutes: body.prepMinutes ? Number(body.prepMinutes) : null }),
+      ...(body.costPrice !== undefined && { costPrice: Math.max(0, Math.round(Number(body.costPrice) || 0)) }),
     },
   });
   return NextResponse.json({ item });

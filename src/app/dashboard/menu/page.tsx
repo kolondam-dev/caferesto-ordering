@@ -6,10 +6,11 @@ import { api } from "@/lib/client";
 import { Badge, Button, Card, Input, Label, Money, PageTitle, Spinner } from "@/components/ui";
 import MenuImage from "@/components/MenuImage";
 import Sheet from "@/components/Sheet";
+import { formatIDR } from "@/lib/constants";
 
 type Photo = { id: string; url: string; isPrimary: boolean };
 type MenuItem = {
-  id: string; name: string; description?: string; price: number; available: boolean;
+  id: string; name: string; description?: string; price: number; costPrice?: number; available: boolean;
   prepMinutes?: number | null; categoryId?: string; photos?: Photo[];
 };
 type Category = { id: string; name: string; items: MenuItem[] };
@@ -112,44 +113,21 @@ export default function MenuAdminPage() {
           </div>
         </Card>
 
-        {/* Panel detail */}
+        {/* Panel detail — tabbed: Detail (edit) + Costing */}
         <Card className="h-fit p-4">
           {!selected ? (
             <p className="py-10 text-center text-sm text-ink/40">Pilih menu untuk melihat detail.</p>
           ) : (
-            <>
-              <div className="mb-3 overflow-hidden rounded-xl">
-                <div className="relative h-40 w-full overflow-hidden">
-                  <MenuImage photos={selected.photos} alt={selected.name} />
-                  {!selected.available && <span className="soldout-ribbon">SOLD OUT</span>}
-                </div>
-              </div>
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <h2 className="text-lg font-extrabold">{selected.name}</h2>
-                <Badge status={selected.available ? "OPEN" : "EXPIRED"} label={selected.available ? "Tersedia" : "Habis"} />
-              </div>
-              <Money value={selected.price} className="font-bold text-sunset-600" />
-              <p className="mt-1 text-xs text-ink/50">Kategori: {catName(selected.categoryId)}</p>
-              {selected.description && <p className="mt-2 text-sm text-ink/70">{selected.description}</p>}
-              {selected.prepMinutes ? (
-                <p className="mt-1 text-xs text-teal-700">Estimasi pembuatan ±{selected.prepMinutes} menit</p>
-              ) : null}
-
-              <div className="mt-4 grid gap-2">
-                <Button onClick={() => setEditItem(selected)}>
-                  <PencilSimple size={16} /> Ubah Detail
-                </Button>
-                <Button variant="outline" onClick={() => setPhotoItem(selected)}>
-                  <Camera size={16} /> Kelola Foto
-                </Button>
-                <Button variant={selected.available ? "outline" : "teal"} onClick={() => toggle(selected)}>
-                  {selected.available ? "Jadikan Habis" : "Jadikan Tersedia"}
-                </Button>
-                <Button variant="danger" onClick={() => remove(selected)}>
-                  <Trash size={16} /> Hapus
-                </Button>
-              </div>
-            </>
+            <DetailPanel
+              key={selected.id}
+              item={selected}
+              categories={categories}
+              catName={catName}
+              onSaved={load}
+              onPhotos={() => setPhotoItem(selected)}
+              onToggle={() => toggle(selected)}
+              onRemove={() => remove(selected)}
+            />
           )}
         </Card>
       </div>
@@ -164,6 +142,150 @@ export default function MenuAdminPage() {
           onClose={() => setEditItem(null)}
           onSaved={(id) => { setEditItem(null); if (id) setSelectedId(id); load(); }}
         />
+      )}
+    </div>
+  );
+}
+
+/** Panel detail menu dengan 2 tab: Detail (edit) & Costing (HPP/margin). */
+function DetailPanel({
+  item, categories, catName, onSaved, onPhotos, onToggle, onRemove,
+}: {
+  item: MenuItem;
+  categories: Category[];
+  catName: (id?: string) => string;
+  onSaved: () => void;
+  onPhotos: () => void;
+  onToggle: () => void;
+  onRemove: () => void;
+}) {
+  const [tab, setTab] = useState<"detail" | "costing">("detail");
+
+  // Form detail
+  const [name, setName] = useState(item.name);
+  const [categoryId, setCategoryId] = useState(item.categoryId ?? categories[0]?.id ?? "");
+  const [description, setDescription] = useState(item.description ?? "");
+  const [prepMinutes, setPrep] = useState(item.prepMinutes ? String(item.prepMinutes) : "");
+  // Costing
+  const [price, setPrice] = useState(String(item.price));
+  const [costPrice, setCost] = useState(String(item.costPrice ?? 0));
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState("");
+
+  const p = Number(price) || 0;
+  const c = Number(costPrice) || 0;
+  const marginRp = p - c;
+  const marginPct = p > 0 ? Math.round((marginRp / p) * 100) : 0;
+
+  async function save(body: Record<string, unknown>) {
+    setBusy(true);
+    setSaved("");
+    try {
+      await api(`/api/menu/${item.id}`, { method: "PATCH", body });
+      setSaved("Tersimpan ✓");
+      onSaved();
+      setTimeout(() => setSaved(""), 1800);
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-3 overflow-hidden rounded-xl">
+        <div className="relative h-40 w-full overflow-hidden">
+          <MenuImage photos={item.photos} alt={item.name} />
+          {!item.available && <span className="soldout-ribbon">SOLD OUT</span>}
+        </div>
+      </div>
+
+      {/* Tab header dengan border-bottom penanda aktif */}
+      <div className="mb-3 flex border-b border-sunset-100">
+        {([["detail", "Detail"], ["costing", "Costing"]] as const).map(([v, label]) => (
+          <button
+            key={v}
+            onClick={() => setTab(v)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-bold transition-colors ${
+              tab === v ? "border-teal-600 text-teal-700" : "border-transparent text-ink/45 hover:text-ink/70"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "detail" ? (
+        <div className="space-y-3">
+          <div>
+            <Label>Nama</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div>
+            <Label>Kategori</Label>
+            <select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="w-full rounded-xl border border-sunset-200 bg-white px-3.5 py-2.5 text-sm"
+            >
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-ink/40">Saat ini: {catName(item.categoryId)}</p>
+          </div>
+          <div>
+            <Label>Estimasi pembuatan (menit)</Label>
+            <Input type="number" min={1} value={prepMinutes} onChange={(e) => setPrep(e.target.value)} />
+          </div>
+          <div>
+            <Label>Deskripsi</Label>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <Button
+            full
+            disabled={busy}
+            onClick={() => save({ name, categoryId, description, prepMinutes: prepMinutes ? Number(prepMinutes) : null })}
+          >
+            {busy ? "Menyimpan…" : saved || "Simpan Detail"}
+          </Button>
+
+          <div className="grid gap-2 border-t border-sunset-50 pt-3">
+            <Button variant="outline" onClick={onPhotos}><Camera size={16} /> Kelola Foto</Button>
+            <Button variant={item.available ? "outline" : "teal"} onClick={onToggle}>
+              {item.available ? "Jadikan Habis" : "Jadikan Tersedia"}
+            </Button>
+            <Button variant="danger" onClick={onRemove}><Trash size={16} /> Hapus</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div>
+            <Label>Harga jual (Rp)</Label>
+            <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
+          </div>
+          <div>
+            <Label>HPP / modal (Rp)</Label>
+            <Input type="number" min={0} value={costPrice} onChange={(e) => setCost(e.target.value)} />
+          </div>
+          <div className="rounded-xl bg-cream p-3 text-sm">
+            <div className="flex justify-between"><span className="text-ink/55">Harga jual</span><Money value={p} className="font-semibold" /></div>
+            <div className="flex justify-between"><span className="text-ink/55">HPP</span><Money value={c} className="font-semibold" /></div>
+            <div className="mt-1 flex justify-between border-t border-sunset-100 pt-1 font-extrabold">
+              <span>Margin</span>
+              <span className={marginRp >= 0 ? "text-teal-700" : "text-red-600"}>
+                {formatIDR(marginRp)} · {marginPct}%
+              </span>
+            </div>
+          </div>
+          <Button full disabled={busy} onClick={() => save({ price: Number(price), costPrice: Number(costPrice) })}>
+            {busy ? "Menyimpan…" : saved || "Simpan Costing"}
+          </Button>
+          <p className="text-[11px] text-ink/40">
+            Margin = harga jual − HPP. Persentase dihitung terhadap harga jual.
+          </p>
+        </div>
       )}
     </div>
   );

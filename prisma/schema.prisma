@@ -79,6 +79,7 @@ model MenuItem {
   name        String
   description String?
   price       Int
+  costPrice   Int          @default(0) // HPP untuk perhitungan margin (backoffice costing)
   imageUrl    String?
   prepMinutes Int? // estimasi lama pembuatan (tampil di kartu menu)
   available   Boolean      @default(true)
@@ -142,6 +143,8 @@ model Order {
   customerId     String?
   customer       User?       @relation(fields: [customerId], references: [id])
   customerName   String?
+  customerPhone  String?
+  channel        String? // takeaway: WALKIN|SHOPEEFOOD|GOFOOD|WA
   depositApplied Int         @default(0) // booking fee yang dikreditkan ke tagihan
   taxPercent     Int         @default(10)
   // Snapshot service fee saat order dibuat (agar tagihan deterministik)

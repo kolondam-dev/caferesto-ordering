@@ -93,6 +93,29 @@ async function main() {
     });
   }
 
+  // Foto demo (referensi internet, keyword sesuai menu) + HPP demo (±40% harga).
+  // LoremFlickr: foto relevan by keyword, ?lock menjaga gambar tetap stabil.
+  const photoKeyword: Record<string, string> = {
+    Espresso: "espresso", Cappuccino: "cappuccino", "Caffe Latte": "latte,coffee",
+    "Es Kopi Susu Aren": "iced,coffee", "Matcha Latte": "matcha,latte",
+    "Chocolate Frappe": "chocolate,frappe", "Lemon Tea": "lemon,tea",
+    "Nasi Goreng CafeResto": "fried,rice", "Spaghetti Carbonara": "carbonara,pasta",
+    "Chicken Steak": "chicken,steak", "Mie Goreng Seafood": "fried,noodles",
+    "French Fries": "french,fries", "Onion Rings": "onion,rings", "Croissant Butter": "croissant",
+  };
+  const allMenuItems = await db.menuItem.findMany({ include: { photos: true } });
+  for (let idx = 0; idx < allMenuItems.length; idx++) {
+    const mi = allMenuItems[idx];
+    if (mi.costPrice === 0) {
+      await db.menuItem.update({ where: { id: mi.id }, data: { costPrice: Math.round(mi.price * 0.4) } });
+    }
+    if (mi.photos.length === 0) {
+      const kw = photoKeyword[mi.name] ?? "food";
+      const url = `https://loremflickr.com/600/400/${kw}?lock=${idx + 1}`;
+      await db.menuPhoto.create({ data: { menuItemId: mi.id, url, isPrimary: true, sort: 0 } });
+    }
+  }
+
   // PRO: chart of accounts sederhana
   const accounts: [string, string, string][] = [
     ["1000", "Kas", "ASSET"],

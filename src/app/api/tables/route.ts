@@ -20,11 +20,17 @@ export async function GET() {
         where: { status: { in: ["OPEN", "PAID"] } },
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { id: true, code: true, status: true, items: { select: { status: true } } },
+        select: { id: true, code: true, status: true, createdAt: true, items: { select: { status: true } } },
       },
     },
   });
-  return NextResponse.json({ tables });
+  // Order aktif hanya relevan untuk meja yang sedang OCCUPIED. Setelah meja
+  // dibersihkan (status OPEN) order PAID lama TIDAK lagi ditampilkan.
+  const cleaned = tables.map((t) => ({
+    ...t,
+    orders: t.status === "OCCUPIED" ? t.orders : [],
+  }));
+  return NextResponse.json({ tables: cleaned });
 }
 
 export async function POST(req: NextRequest) {
