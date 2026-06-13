@@ -32,13 +32,13 @@ export async function applySettlement(paymentId: string) {
   // Pembayaran order
   if (payment.order) {
     if (payment.order.source === "QR") {
-      // Jalur Scan & Serve: SINGLE lunas → lanjut validasi/dapur otomatis;
+      // Jalur Scan & Serve: FULL/SINGLE lunas (1 QR) → lanjut validasi/dapur otomatis;
       // UPFRONT menunggu konfirmasi akhir host (endpoint finalize).
       const { due } = await getOrderDue(payment.order.id);
       if (
         due <= 0 &&
         payment.order.status === ORDER_STATUS.AWAITING_PAYMENT &&
-        payment.order.splitMode === "SINGLE"
+        (payment.order.splitMode === "SINGLE" || payment.order.splitMode === "FULL")
       ) {
         const { moveToValidationOrKitchen } = await import("../qr-flow");
         await moveToValidationOrKitchen(payment.order.id);
@@ -82,8 +82,6 @@ export async function closeOrderIfPaid(orderId: string) {
       data: { status: ITEM_STATUS.QUEUED },
     }),
   ];
-  if (order.tableId)
-    tx.push(db.table.update({ where: { id: order.tableId }, data: { status: TABLE_STATUS.OPEN } }) as never);
   if (order.bookingId)
     tx.push(
       db.booking.update({
@@ -91,6 +89,10 @@ export async function closeOrderIfPaid(orderId: string) {
         data: { status: BOOKING_STATUS.COMPLETED },
       }) as never
     );
+  // CATATAN: meja TIDAK dibebaskan di sini. Order lunas dengan meja (dine-in)
+  // tetap OCCUPIED sampai kasir memverifikasi semua pesanan tersaji lalu
+  // menekan "Bersihkan Meja" (lihat /api/orders/[id]/clear-table). Takeaway
+  // tanpa meja tidak perlu dibersihkan.
   await db.$transaction(tx);
   return true;
 }

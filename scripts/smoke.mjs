@@ -141,6 +141,14 @@ ok(r.data.items.some((i) => i.orderId === posOrderId), "dapur melihat item POS s
 r = await cashier(`/api/orders/${posOrderId}/pay`, { method: "POST", body: { method: "cash" } });
 ok(r.status === 200 && r.data.orderStatus === "PAID", "bayar cash → PAID");
 
+// Pembayaran TIDAK otomatis membebaskan meja — kasir verifikasi dulu
+r = await anon("/api/tables");
+ok(r.data.tables.find((t) => t.id === tablePOS.id).status !== "OPEN", "meja POS tetap occupied setelah bayar (belum dibersihkan)");
+r = await cashier(`/api/orders/${posOrderId}/clear-table`, { method: "POST" });
+ok(r.status === 200 && r.data.cleared === true, "kasir bersihkan meja");
+r = await anon("/api/tables");
+ok(r.data.tables.find((t) => t.id === tablePOS.id).status === "OPEN", "meja POS OPEN setelah dibersihkan");
+
 // ── Sold out / ready toggle oleh kasir ──────────────────────────
 r = await cashier(`/api/menu/${menuItemId}/availability`, { method: "POST", body: { available: false } });
 // availability hanya PATCH; pastikan POST tidak diizinkan, lalu PATCH benar

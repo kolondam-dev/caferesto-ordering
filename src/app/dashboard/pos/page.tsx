@@ -155,7 +155,8 @@ function ValidationQueue({ onChanged }: { onChanged: () => void }) {
   );
 }
 
-type TableT = { id: string; name: string; capacity: number; status: string; orders: { id: string }[] };
+type TableOrder = { id: string; code: string; status: string; items: { status: string }[] };
+type TableT = { id: string; name: string; capacity: number; status: string; orders: TableOrder[] };
 type MenuItem = {
   id: string; name: string; price: number; available: boolean;
   photos?: { url: string; isPrimary: boolean }[];
@@ -207,6 +208,24 @@ export default function POSPage() {
       .catch(() => {});
   }, [loadTables, loadMenu]);
 
+  // Refresh strip meja berkala (status & progres penyajian)
+  useEffect(() => {
+    const t = setInterval(loadTables, 10000);
+    return () => clearInterval(t);
+  }, [loadTables]);
+
+  // Order lunas yang menunggu dibersihkan: pantau progres penyajian live
+  const currentId = current?.order.id;
+  const currentStatus = current?.order.status;
+  useEffect(() => {
+    if (!currentId || currentStatus === "OPEN") return;
+    const t = setInterval(() => loadOrder(currentId), 6000);
+    return () => clearInterval(t);
+  }, [currentId, currentStatus, loadOrder]);
+
+  // Pratinjau meja selalu pakai data tabel terbaru (bukan snapshot saat klik)
+  const previewLive = preview ? tables?.find((t) => t.id === preview.id) ?? preview : null;
+
   const visibleItems = useMemo(() => {
     const cats = activeCat === "all" ? categories : categories.filter((c) => c.id === activeCat);
     const q = search.trim().toLowerCase();
@@ -232,9 +251,26 @@ export default function POSPage() {
     setPreview(t);
   }
 
-  async function continueOrder(t: TableT) {
+  async function continueOrder(orderId: string) {
     setPreview(null);
-    await loadOrder(t.orders[0].id);
+    await loadOrder(orderId);
+  }
+
+  /** Kasir membebaskan meja setelah memastikan semua pesanan tersaji. */
+  async function clearTable(orderId: string, allServed: boolean) {
+    if (!allServed && !confirm("Masih ada pesanan yang belum tersaji. Tetap bersihkan meja?")) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      await api(`/api/orders/${orderId}/clear-table`, { method: "POST" });
+      setPreview(null);
+      setCurrent(null);
+      loadTables();
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function openNewOrder(t: TableT) {
@@ -423,7 +459,7 @@ export default function POSPage() {
                     onClick={() => addItem(i)}
                     className="block w-full text-left disabled:cursor-default"
                   >
-                    <div className="relative h-20 w-full">
+                    <div className="relative h-20 w-full overflow-hidden">
                       <MenuImage photos={i.photos} alt={i.name} />
                       {!i.available && <span className="soldout-ribbon">SOLD OUT</span>}
                       {menuTab === "order" && qty > 0 && (
@@ -484,33 +520,56 @@ export default function POSPage() {
 
         {/* Kalkulasi order */}
         <Card className="h-fit p-4">
-          {preview ? (
+          {previewLive ? (
             <div className="py-2">
               <h2 className="flex items-center gap-2 font-extrabold">
-                <TableIcon size={22} weight="fill" className="text-teal-600" /> {preview.name}
+                <TableIcon size={22} weight="fill" className="text-teal-600" /> {previewLive.name}
               </h2>
               <p className="mt-0.5 text-sm text-ink/55">
-                Status: <Badge status={preview.status} /> · kapasitas {preview.capacity}
+                Status: <Badge status={previewLive.status} /> · kapasitas {previewLive.capacity}
               </p>
-              {preview.status === "BOOKED" && (
+              {previewLive.status === "BOOKED" && (
                 <p className="mt-2 rounded-xl bg-gold-50 p-2.5 text-xs text-gold-900">
                   Meja ini sedang dibooking — buka order hanya bila tamu booking sudah datang.
                 </p>
               )}
-              <div className="mt-4 space-y-2">
-                {preview.orders[0] ? (
-                  <Button variant="teal" full onClick={() => continueOrder(preview)} disabled={busy}>
-                    Lanjutkan Order Berjalan
-                  </Button>
-                ) : (
-                  <Button full onClick={() => openNewOrder(preview)} disabled={busy}>
-                    Buka Order Baru
-                  </Button>
-                )}
-                <Button variant="outline" full onClick={() => setPreview(null)}>
-                  Batal
-                </Button>
-              </div>
+              {(() => {
+                const active = previewLive.orders[0];
+                const openOrder = active?.status === "OPEN" ? active : null;
+                const paidOrder = active?.status === "PAID" ? active : null;
+                const served = paidOrder ? paidOrder.items.filter((i) => i.status === "SERVED").length : 0;
+                const total = paidOrder ? paidOrder.items.filter((i) => i.status !== "CANCELED").length : 0;
+                const allServed = total > 0 && served === total;
+                return (
+                  <div className="mt-4 space-y-2">
+                    {openOrder ? (
+                      <Button variant="teal" full onClick={() => continueOrder(openOrder.id)} disabled={busy}>
+                        Lanjutkan Order Berjalan
+                      </Button>
+                    ) : paidOrder ? (
+                      <>
+                        <div className={`rounded-xl p-2.5 text-center text-xs font-semibold ${allServed ? "bg-emerald-50 text-emerald-800" : "bg-gold-50 text-gold-900"}`}>
+                          Lunas · {served}/{total} pesanan tersaji
+                          {!allServed && " — tunggu semua diantar"}
+                        </div>
+                        <Button variant={allServed ? "teal" : "outline"} full onClick={() => clearTable(paidOrder.id, allServed)} disabled={busy}>
+                          Bersihkan Meja
+                        </Button>
+                        <Button full onClick={() => openNewOrder(previewLive)} disabled={busy}>
+                          <Plus size={16} /> Order Lagi (ronde baru)
+                        </Button>
+                      </>
+                    ) : (
+                      <Button full onClick={() => openNewOrder(previewLive)} disabled={busy}>
+                        Buka Order Baru
+                      </Button>
+                    )}
+                    <Button variant="outline" full onClick={() => setPreview(null)}>
+                      Batal
+                    </Button>
+                  </div>
+                );
+              })()}
               {msg && <p className="mt-2 text-sm font-semibold text-red-600">{msg}</p>}
             </div>
           ) : !current ? (
@@ -569,6 +628,23 @@ export default function POSPage() {
                   </Button>
                 </div>
               )}
+              {/* Lunas tapi meja belum dibersihkan: verifikasi penyajian lalu bebaskan meja */}
+              {current.order.status === "PAID" && current.order.table && (() => {
+                const active = current.order.items.filter((i) => i.status !== "CANCELED");
+                const served = active.filter((i) => i.status === "SERVED").length;
+                const allServed = active.length > 0 && served === active.length;
+                return (
+                  <div className="mt-3 space-y-2">
+                    <div className={`rounded-xl p-2.5 text-center text-xs font-semibold ${allServed ? "bg-emerald-50 text-emerald-800" : "bg-gold-50 text-gold-900"}`}>
+                      Lunas · {served}/{active.length} pesanan tersaji
+                      {!allServed && " — tunggu semua diantar sebelum bersihkan"}
+                    </div>
+                    <Button variant={allServed ? "teal" : "outline"} full onClick={() => clearTable(current.order.id, allServed)} disabled={busy}>
+                      Bersihkan Meja
+                    </Button>
+                  </div>
+                );
+              })()}
               {/* Struk: preview/cetak browser + thermal */}
               <div className="mt-3 space-y-2 border-t border-sunset-100 pt-3">
                 <Button

@@ -235,10 +235,26 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
         {isPaying && shares && (
           <Card className="p-4">
             <h2 className="mb-1 flex items-center gap-1.5 font-extrabold">
-              {order.splitMode === "UPFRONT" ? <ArrowsSplit size={18} /> : <Receipt size={18} />}
-              {order.splitMode === "UPFRONT" ? "Split di Muka — bayar masing-masing" : "Split Akhir — satu pembayaran"}
+              {order.splitMode === "UPFRONT" ? <ArrowsSplit size={18} /> : order.splitMode === "SINGLE" ? <Receipt size={18} /> : <CreditCard size={18} />}
+              {order.splitMode === "UPFRONT"
+                ? "Split di Muka — bayar masing-masing"
+                : order.splitMode === "SINGLE"
+                  ? "Split Akhir — satu pembayaran"
+                  : "Pembayaran"}
             </h2>
-            {order.splitMode === "UPFRONT" ? (
+            {order.splitMode === "FULL" ? (
+              <div className="mt-2 space-y-2">
+                <p className="text-sm text-ink/60">Total tagihan dibayar sekaligus.</p>
+                {me?.isHost && bill.due > 0 && (
+                  <Button full onClick={() => payShare()} disabled={busy}>
+                    <CreditCard size={18} /> Bayar Sekarang — <Money value={bill.due} />
+                  </Button>
+                )}
+                {!me?.isHost && (
+                  <p className="text-center text-[11px] text-ink/40">Menunggu pembayaran oleh pemegang order.</p>
+                )}
+              </div>
+            ) : order.splitMode === "UPFRONT" ? (
               <>
                 <div className="mt-2 space-y-1.5">
                   {shares.map((s) => (
@@ -380,67 +396,74 @@ function BillRow({ label, value, accent }: { label: string; value: number; accen
 function SplitChoiceModal({
   shares, total, onClose, onConfirm,
 }: {
-  shares: Share[]; total: number; onClose: () => void; onConfirm: (mode: "SINGLE" | "UPFRONT") => Promise<void>;
+  shares: Share[]; total: number; onClose: () => void; onConfirm: (mode: "FULL" | "SINGLE" | "UPFRONT") => Promise<void>;
 }) {
-  const [mode, setMode] = useState<"SINGLE" | "UPFRONT">("SINGLE");
   const [busy, setBusy] = useState(false);
+  const [showSplit, setShowSplit] = useState(false);
+
+  async function go(mode: "FULL" | "SINGLE" | "UPFRONT") {
+    setBusy(true);
+    await onConfirm(mode);
+    setBusy(false);
+  }
+
   return (
-    <Sheet title="Cara Pembayaran" onClose={onClose}>
+    <Sheet title="Konfirmasi & Bayar" onClose={onClose}>
       <div>
         <p className="mb-3 text-xs text-ink/50">
           Setelah konfirmasi, pesanan terkunci (tidak bisa tambah/ubah item) dan masuk fase pembayaran.
         </p>
-        <div className="space-y-2">
-          <ModeOption
-            active={mode === "SINGLE"}
-            onClick={() => setMode("SINGLE")}
-            title="Split Akhir — satu QR"
-            desc="Anda membayar seluruh tagihan. Aplikasi memberi rincian per orang untuk Anda tagihkan manual ke teman."
-          />
-          <ModeOption
-            active={mode === "UPFRONT"}
-            onClick={() => setMode("UPFRONT")}
-            title="Split di Muka — bayar masing-masing"
-            desc="Setiap peserta mendapat QR sendiri sesuai pesanannya (plus fee & pajak proporsional)."
-          />
-        </div>
-        <div className="mt-3 rounded-xl bg-cream p-3">
-          <p className="mb-1 text-[11px] font-bold text-ink/40">PERKIRAAN RINCIAN</p>
-          {shares.map((s) => (
-            <div key={s.participantId} className="flex justify-between text-sm">
-              <span>{s.name}</span>
-              <Money value={s.amount} className="font-semibold" />
-            </div>
-          ))}
-          <div className="mt-1 flex justify-between border-t border-sunset-100 pt-1 text-sm font-extrabold">
+        <div className="rounded-xl bg-cream p-3">
+          <div className="flex justify-between text-base font-extrabold">
             <span>Total</span>
-            <Money value={total} />
+            <Money value={total} className="text-sunset-600" />
           </div>
         </div>
-        <Button
-          full
-          className="mt-4"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            await onConfirm(mode);
-            setBusy(false);
-          }}
-        >
-          {busy ? "Memproses…" : "Konfirmasi Pesanan"}
+
+        {/* CTA utama: bayar biasa */}
+        <Button full className="mt-4 !py-3 text-base" disabled={busy} onClick={() => go("FULL")}>
+          {busy ? "Memproses…" : "Bayar Sekarang"}
         </Button>
+
+        {/* Opsi tambahan: bagi tagihan */}
+        {!showSplit ? (
+          <button onClick={() => setShowSplit(true)} className="mt-3 w-full text-center text-xs font-bold text-teal-700 underline">
+            Mau bagi tagihan dengan teman?
+          </button>
+        ) : (
+          <div className="mt-3 space-y-2">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-ink/40">Bagi tagihan</p>
+            <ModeOption
+              onClick={() => go("SINGLE")}
+              title="Split Akhir — satu QR"
+              desc="Anda bayar seluruh tagihan; struk memberi rincian per orang untuk ditagihkan manual ke teman."
+            />
+            <ModeOption
+              onClick={() => go("UPFRONT")}
+              title="Split di Muka — bayar masing-masing"
+              desc="Setiap peserta dapat QR sendiri sesuai pesanannya (plus fee & pajak proporsional)."
+            />
+            <div className="rounded-xl bg-cream p-3">
+              <p className="mb-1 text-[11px] font-bold text-ink/40">PERKIRAAN RINCIAN</p>
+              {shares.map((s) => (
+                <div key={s.participantId} className="flex justify-between text-sm">
+                  <span>{s.name}</span>
+                  <Money value={s.amount} className="font-semibold" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </Sheet>
   );
 }
 
-function ModeOption({ active, onClick, title, desc }: { active: boolean; onClick: () => void; title: string; desc: string }) {
+function ModeOption({ onClick, title, desc }: { onClick: () => void; title: string; desc: string }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full rounded-2xl border-2 p-3 text-left transition-colors ${
-        active ? "border-sunset-500 bg-sunset-50" : "border-sunset-100 bg-white"
-      }`}
+      className="w-full rounded-2xl border-2 border-sunset-100 bg-white p-3 text-left transition-colors hover:border-teal-300 active:bg-sunset-50"
     >
       <p className="text-sm font-extrabold">{title}</p>
       <p className="mt-0.5 text-xs text-ink/55">{desc}</p>

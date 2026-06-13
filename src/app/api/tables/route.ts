@@ -14,7 +14,14 @@ export async function GET() {
         orderBy: { scheduledAt: "asc" },
         take: 1,
       },
-      orders: { where: { status: "OPEN" }, take: 1 },
+      // Order aktif = OPEN (berjalan) atau PAID (lunas, menunggu dibersihkan kasir).
+      // Sertakan status item untuk progres penyajian (X/Y tersaji).
+      orders: {
+        where: { status: { in: ["OPEN", "PAID"] } },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { id: true, code: true, status: true, items: { select: { status: true } } },
+      },
     },
   });
   return NextResponse.json({ tables });

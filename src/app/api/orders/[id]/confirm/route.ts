@@ -8,16 +8,18 @@ import { computeShares } from "@/lib/qr-flow";
 type Ctx = { params: Promise<{ id: string }> };
 
 /**
- * Host mengunci draft QR dan memilih mode split:
- * - SINGLE  : 1 QR total dibayar host; rincian per member hanya informasi (K6).
- * - UPFRONT : tiap member aktif membayar QR-nya sendiri (K3).
- * Charge dibuat saat masing-masing menekan tombol bayar (endpoint pay-share).
+ * Host mengunci draft QR dan memilih cara bayar:
+ * - FULL    : 1 QR total dibayar host, tanpa rincian per member (pembayaran biasa).
+ * - SINGLE  : 1 QR total dibayar host + rincian per member di struk (split akhir, K6).
+ * - UPFRONT : tiap member aktif membayar QR-nya sendiri (split muka, K3).
+ * Charge dibuat saat tombol bayar ditekan (endpoint pay-share).
  */
+const MODES = ["FULL", "SINGLE", "UPFRONT"];
 async function handlePost(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   const body = (await req.json().catch(() => ({}))) as { splitMode?: string };
-  const splitMode = body.splitMode === "UPFRONT" ? "UPFRONT" : body.splitMode === "SINGLE" ? "SINGLE" : null;
-  if (!splitMode) return NextResponse.json({ error: "splitMode harus SINGLE atau UPFRONT" }, { status: 400 });
+  const splitMode = MODES.includes(body.splitMode ?? "") ? body.splitMode! : null;
+  if (!splitMode) return NextResponse.json({ error: "splitMode harus FULL, SINGLE, atau UPFRONT" }, { status: 400 });
 
   const order = await db.order.findUnique({ where: { id }, include: { items: true } });
   if (!order) return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
