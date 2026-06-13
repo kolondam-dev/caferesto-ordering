@@ -8,7 +8,9 @@ export type ReceiptData = {
   tableName?: string | null;
   createdAt: string;
   closedAt?: string | null;
-  items: { nameSnapshot: string; qty: number; price: number; status: string }[];
+  splitMode?: string | null;
+  items: { nameSnapshot: string; qty: number; price: number; status: string; participantId?: string | null }[];
+  participants?: { id: string; name: string }[];
   bill: { subtotal: number; serviceFee: number; tax: number; total: number; deposit: number; settled: number; due: number };
   payments: { payerName?: string | null; amount: number; provider: string; status: string }[];
 };
@@ -39,6 +41,29 @@ export default function Receipt({ data }: { data: ReceiptData }) {
           <span className="shrink-0">{formatIDR(i.price * i.qty)}</span>
         </div>
       ))}
+      {/* Split akhir: tampilkan rincian per member agar order holder bisa menagih.
+          Pada pembayaran langsung (tanpa split) bagian ini tidak muncul. */}
+      {data.splitMode === "SINGLE" && (data.participants?.length ?? 0) > 0 && (
+        <>
+          <Hr />
+          <p className="font-bold">Rincian per orang (split):</p>
+          {data.participants!.map((p) => {
+            const own = items.filter((i) => i.participantId === p.id);
+            if (own.length === 0) return null;
+            const sub = own.reduce((s, i) => s + i.price * i.qty, 0);
+            return (
+              <div key={p.id} className="mt-1">
+                <Row label={p.name} value={sub} />
+                {own.map((i, idx) => (
+                  <div key={idx} className="pl-3 text-[11px] text-black/70">
+                    {i.qty}x {i.nameSnapshot}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </>
+      )}
       <Hr />
       <Row label="Subtotal" value={data.bill.subtotal} />
       {data.bill.serviceFee > 0 && <Row label="Service fee" value={data.bill.serviceFee} />}

@@ -58,6 +58,44 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Kunci pull-to-refresh & bounce agar scroll/swipe tidak memicu reload halaman */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* Efek tap pada kartu menu: kilas latar sangat halus + sedikit mengecil */
+@keyframes tap-pulse {
+  0% {
+    background-color: var(--color-sunset-100);
+  }
+  100% {
+    background-color: white;
+  }
+}
+.tap-pulse {
+  animation: tap-pulse 0.45s ease-out;
+}
+
+/* Ribbon diagonal "SOLD OUT" dari kiri-bawah ke kanan-atas, menutup pojok foto */
+.soldout-ribbon {
+  position: absolute;
+  left: -34px;
+  bottom: 14px;
+  width: 130px;
+  transform: rotate(45deg);
+  background: var(--color-ink);
+  color: white;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 3px 0;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+  pointer-events: none;
+}
+
+
 /* Chat bubble markdown (gaya WhatsApp) */
 .chat-md table {
   width: 100%;

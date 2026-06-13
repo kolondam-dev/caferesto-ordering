@@ -122,14 +122,35 @@ ok(r.data.order.status === "PAID", "semua tersaji → order selesai (PAID)");
 r = await anon("/api/tables");
 ok(r.data.tables.find((t) => t.id === tableQR.id).status === "OPEN", "meja kembali OPEN");
 
-// ── Jalur POS pay-later ──────────────────────────────────────────
+// ── Jalur POS pay-later (dengan langkah validasi kirim ke dapur) ─
 r = await cashier("/api/orders", { method: "POST", body: { type: "DINE_IN", tableId: tablePOS.id } });
 const posOrderId = r.data.order.id;
 ok(r.status === 201, "kasir buka order dine-in");
 r = await cashier(`/api/orders/${posOrderId}/items`, { method: "POST", body: { items: [{ menuItemId, qty: 1 }] } });
-ok(r.data.items[0].status === "QUEUED", "item POS langsung QUEUED");
+ok(r.data.items[0].status === "DRAFT", "item POS mulai DRAFT (belum ke dapur)");
+
+// Belum dikirim → dapur belum melihat item POS ini
+r = await kitchen("/api/kitchen");
+ok(!r.data.items.some((i) => i.orderId === posOrderId), "dapur belum melihat item POS sebelum dikirim");
+
+r = await cashier(`/api/orders/${posOrderId}/send-kitchen`, { method: "POST" });
+ok(r.status === 200 && r.data.sent === 1, "kasir kirim ke dapur → item QUEUED");
+r = await kitchen("/api/kitchen");
+ok(r.data.items.some((i) => i.orderId === posOrderId), "dapur melihat item POS setelah dikirim");
+
 r = await cashier(`/api/orders/${posOrderId}/pay`, { method: "POST", body: { method: "cash" } });
 ok(r.status === 200 && r.data.orderStatus === "PAID", "bayar cash → PAID");
+
+// ── Sold out / ready toggle oleh kasir ──────────────────────────
+r = await cashier(`/api/menu/${menuItemId}/availability`, { method: "POST", body: { available: false } });
+// availability hanya PATCH; pastikan POST tidak diizinkan, lalu PATCH benar
+r = await cashier(`/api/menu/${menuItemId}/availability`, { method: "PATCH", body: { available: false } });
+ok(r.status === 200 && r.data.item.available === false, "kasir set menu sold out");
+r = await anon("/api/menu");
+const soldItem = r.data.categories.flatMap((c) => c.items).find((i) => i.id === menuItemId);
+ok(soldItem && soldItem.available === false, "menu tampil sold out di publik");
+r = await cashier(`/api/menu/${menuItemId}/availability`, { method: "PATCH", body: { available: true } });
+ok(r.status === 200 && r.data.item.available === true, "kasir set menu ready lagi");
 
 // ── Guard role ───────────────────────────────────────────────────
 r = await guestA("/api/pro/inventory");

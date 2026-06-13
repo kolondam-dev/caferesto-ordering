@@ -9,9 +9,10 @@ import Receipt, { type ReceiptData } from "@/components/Receipt";
 
 type OrderResp = {
   order: {
-    code: string; createdAt: string; closedAt?: string | null;
+    code: string; createdAt: string; closedAt?: string | null; splitMode?: string | null;
     table?: { name: string } | null;
     items: ReceiptData["items"];
+    participants?: ReceiptData["participants"];
     payments: ReceiptData["payments"];
   };
   bill: ReceiptData["bill"];
@@ -38,7 +39,9 @@ function ReceiptPage({ id }: { id: string }) {
           tableName: o.order.table?.name ?? null,
           createdAt: o.order.createdAt,
           closedAt: o.order.closedAt,
+          splitMode: o.order.splitMode,
           items: o.order.items,
+          participants: o.order.participants,
           bill: o.bill,
           payments: o.order.payments,
         });
