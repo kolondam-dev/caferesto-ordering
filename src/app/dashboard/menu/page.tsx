@@ -421,8 +421,8 @@ function PhotoModal({ item, onClose }: { item: MenuItem; onClose: () => void }) 
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch(`/api/menu/${item.id}/photos`, { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Upload gagal");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error ?? `Upload gagal (${res.status})`);
       load();
     } catch (e) {
       alert((e as Error).message);
