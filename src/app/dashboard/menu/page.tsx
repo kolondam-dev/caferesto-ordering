@@ -1,25 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Camera, Plus, Star, Trash } from "@phosphor-icons/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Camera, MagnifyingGlass, PencilSimple, Plus, Star, Trash } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
-import { Button, Card, Input, Label, Money, PageTitle, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Input, Label, Money, PageTitle, Spinner } from "@/components/ui";
 import MenuImage from "@/components/MenuImage";
 import Sheet from "@/components/Sheet";
 
 type Photo = { id: string; url: string; isPrimary: boolean };
 type MenuItem = {
   id: string; name: string; description?: string; price: number; available: boolean;
-  prepMinutes?: number | null; photos?: Photo[];
+  prepMinutes?: number | null; categoryId?: string; photos?: Photo[];
 };
 type Category = { id: string; name: string; items: MenuItem[] };
 
+/** Kelola Menu — layout ala POS: grid menu di kiri, panel detail + aksi di kanan. */
 export default function MenuAdminPage() {
   const [categories, setCategories] = useState<Category[] | null>(null);
-  const [form, setForm] = useState({ name: "", price: "", categoryId: "", description: "", prepMinutes: "" });
-  const [newCat, setNewCat] = useState("");
-  const [showForm, setShowForm] = useState(false);
+  const [activeCat, setActiveCat] = useState("all");
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [photoItem, setPhotoItem] = useState<MenuItem | null>(null);
+  const [editItem, setEditItem] = useState<MenuItem | "new" | null>(null);
 
   const load = useCallback(
     () => api<{ categories: Category[] }>("/api/menu").then((d) => setCategories(d.categories)),
@@ -29,122 +31,251 @@ export default function MenuAdminPage() {
     load();
   }, [load]);
 
-  async function addItem(e: React.FormEvent) {
-    e.preventDefault();
-    await api("/api/menu", { method: "POST", body: { ...form, price: Number(form.price) } }).catch((err) => alert(err.message));
-    setForm({ name: "", price: "", categoryId: form.categoryId, description: "", prepMinutes: "" });
-    load();
-  }
+  const allItems = useMemo(() => (categories ?? []).flatMap((c) => c.items.map((i) => ({ ...i, categoryId: c.id }))), [categories]);
+  const selected = allItems.find((i) => i.id === selectedId) ?? null;
+  const catName = (id?: string) => categories?.find((c) => c.id === id)?.name ?? "—";
 
-  async function addCategory() {
-    if (!newCat.trim()) return;
-    await api("/api/menu", { method: "POST", body: { kind: "category", name: newCat.trim(), sort: categories?.length ?? 0 } });
-    setNewCat("");
-    load();
-  }
+  const visibleItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allItems.filter(
+      (i) => (activeCat === "all" || i.categoryId === activeCat) && (!q || i.name.toLowerCase().includes(q))
+    );
+  }, [allItems, activeCat, search]);
 
   async function toggle(item: MenuItem) {
-    await api(`/api/menu/${item.id}`, { method: "PATCH", body: { available: !item.available } });
+    await api(`/api/menu/${item.id}/availability`, { method: "PATCH", body: { available: !item.available } });
+    load();
+  }
+  async function remove(item: MenuItem) {
+    if (!confirm(`Hapus ${item.name}?`)) return;
+    await api(`/api/menu/${item.id}`, { method: "DELETE" }).catch((e) => alert(e.message));
+    setSelectedId(null);
     load();
   }
 
   if (!categories) return <Spinner />;
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-7xl">
       <PageTitle
         title="Kelola Menu"
         action={
-          <Button variant="gold" onClick={() => setShowForm((v) => !v)}>
+          <Button variant="gold" onClick={() => setEditItem("new")}>
             <Plus size={16} /> Item Baru
           </Button>
         }
       />
 
-      {showForm && (
-        <Card className="mb-4 p-4">
-          <form onSubmit={addItem} className="grid gap-3 md:grid-cols-2">
-            <div>
-              <Label>Nama</Label>
-              <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-            </div>
-            <div>
-              <Label>Harga (Rp)</Label>
-              <Input type="number" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} required />
-            </div>
-            <div>
-              <Label>Kategori</Label>
-              <select
-                value={form.categoryId}
-                onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
-                required
-                className="w-full rounded-xl border border-sunset-200 bg-white px-3.5 py-2.5 text-sm"
-              >
-                <option value="">— pilih —</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label>Deskripsi</Label>
-              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Estimasi pembuatan (menit, opsional)</Label>
-              <Input type="number" min={1} value={form.prepMinutes} onChange={(e) => setForm((f) => ({ ...f, prepMinutes: e.target.value }))} />
-            </div>
-            <Button type="submit" className="md:col-span-2">Simpan Item</Button>
-          </form>
-          <div className="mt-3 flex gap-2 border-t border-sunset-50 pt-3">
-            <Input placeholder="Kategori baru…" value={newCat} onChange={(e) => setNewCat(e.target.value)} />
-            <Button variant="outline" onClick={addCategory}>Tambah Kategori</Button>
+      <div className="grid gap-4 lg:grid-cols-[7fr_3fr]">
+        {/* Grid menu */}
+        <Card className="p-3">
+          <div className="relative mb-2">
+            <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/35" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari menu…"
+              className="w-full rounded-xl border border-sunset-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-teal-400"
+            />
           </div>
-        </Card>
-      )}
-
-      {categories.map((c) => (
-        <div key={c.id} className="mb-5">
-          <h2 className="mb-2 font-extrabold">{c.name}</h2>
-          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-            {c.items.map((i) => (
-              <Card key={i.id} className={`flex items-stretch overflow-hidden ${!i.available ? "opacity-50" : ""}`}>
-                <div className="w-16 shrink-0">
-                  <MenuImage photos={i.photos} alt={i.name} />
-                </div>
-                <div className="flex min-w-0 flex-1 items-center justify-between gap-2 p-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold">{i.name}</p>
-                    <p className="flex items-center gap-1.5">
-                      <Money value={i.price} className="text-xs text-sunset-600" />
-                      {i.prepMinutes ? <span className="text-[10px] font-semibold text-teal-700">±{i.prepMinutes} mnt</span> : null}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 gap-1.5">
-                    <Button variant="ghost" className="!px-2 !py-1.5" onClick={() => setPhotoItem(i)} title="Kelola foto">
-                      <Camera size={16} />
-                    </Button>
-                    <Button variant={i.available ? "outline" : "teal"} className="!py-1.5 text-xs" onClick={() => toggle(i)}>
-                      {i.available ? "Habis" : "Aktifkan"}
-                    </Button>
-                  </div>
-                </div>
-              </Card>
+          <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
+            <CatChip label="Semua" active={activeCat === "all"} onClick={() => setActiveCat("all")} />
+            {categories.map((c) => (
+              <CatChip key={c.id} label={c.name} active={activeCat === c.id} onClick={() => setActiveCat(c.id)} />
             ))}
           </div>
-        </div>
-      ))}
+          <div className="grid max-h-[62dvh] grid-cols-2 content-start gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-4">
+            {visibleItems.map((i) => (
+              <button
+                key={i.id}
+                onClick={() => setSelectedId(i.id)}
+                className={`relative overflow-hidden rounded-xl border bg-white text-left transition-colors ${
+                  selectedId === i.id ? "border-teal-500 ring-2 ring-teal-200" : "border-sunset-100 hover:border-teal-300"
+                } ${!i.available ? "opacity-60" : ""}`}
+              >
+                <div className="relative h-20 w-full">
+                  <MenuImage photos={i.photos} alt={i.name} />
+                  {!i.available && <span className="soldout-ribbon">SOLD OUT</span>}
+                </div>
+                <div className="p-2.5">
+                  <p className="line-clamp-2 text-sm font-bold leading-tight">{i.name}</p>
+                  <Money value={i.price} className="text-xs font-bold text-teal-700" />
+                </div>
+              </button>
+            ))}
+            {visibleItems.length === 0 && (
+              <p className="col-span-full py-8 text-center text-sm text-ink/40">Tidak ada menu.</p>
+            )}
+          </div>
+          <div className="mt-3 flex gap-2 border-t border-sunset-50 pt-3">
+            <CategoryAdder count={categories.length} onAdded={load} />
+          </div>
+        </Card>
+
+        {/* Panel detail */}
+        <Card className="h-fit p-4">
+          {!selected ? (
+            <p className="py-10 text-center text-sm text-ink/40">Pilih menu untuk melihat detail.</p>
+          ) : (
+            <>
+              <div className="mb-3 overflow-hidden rounded-xl">
+                <div className="relative h-40 w-full">
+                  <MenuImage photos={selected.photos} alt={selected.name} />
+                  {!selected.available && <span className="soldout-ribbon">SOLD OUT</span>}
+                </div>
+              </div>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <h2 className="text-lg font-extrabold">{selected.name}</h2>
+                <Badge status={selected.available ? "OPEN" : "EXPIRED"} label={selected.available ? "Tersedia" : "Habis"} />
+              </div>
+              <Money value={selected.price} className="font-bold text-sunset-600" />
+              <p className="mt-1 text-xs text-ink/50">Kategori: {catName(selected.categoryId)}</p>
+              {selected.description && <p className="mt-2 text-sm text-ink/70">{selected.description}</p>}
+              {selected.prepMinutes ? (
+                <p className="mt-1 text-xs text-teal-700">Estimasi pembuatan ±{selected.prepMinutes} menit</p>
+              ) : null}
+
+              <div className="mt-4 grid gap-2">
+                <Button onClick={() => setEditItem(selected)}>
+                  <PencilSimple size={16} /> Ubah Detail
+                </Button>
+                <Button variant="outline" onClick={() => setPhotoItem(selected)}>
+                  <Camera size={16} /> Kelola Foto
+                </Button>
+                <Button variant={selected.available ? "outline" : "teal"} onClick={() => toggle(selected)}>
+                  {selected.available ? "Jadikan Habis" : "Jadikan Tersedia"}
+                </Button>
+                <Button variant="danger" onClick={() => remove(selected)}>
+                  <Trash size={16} /> Hapus
+                </Button>
+              </div>
+            </>
+          )}
+        </Card>
+      </div>
 
       {photoItem && (
-        <PhotoModal
-          item={photoItem}
-          onClose={() => {
-            setPhotoItem(null);
-            load();
-          }}
+        <PhotoModal item={photoItem} onClose={() => { setPhotoItem(null); load(); }} />
+      )}
+      {editItem && (
+        <EditModal
+          item={editItem === "new" ? null : editItem}
+          categories={categories}
+          onClose={() => setEditItem(null)}
+          onSaved={(id) => { setEditItem(null); if (id) setSelectedId(id); load(); }}
         />
       )}
     </div>
+  );
+}
+
+function CatChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
+        active ? "bg-teal-600 text-white" : "border border-sunset-100 bg-white text-ink/55 hover:border-teal-300"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function CategoryAdder({ count, onAdded }: { count: number; onAdded: () => void }) {
+  const [name, setName] = useState("");
+  async function add() {
+    if (!name.trim()) return;
+    await api("/api/menu", { method: "POST", body: { kind: "category", name: name.trim(), sort: count } });
+    setName("");
+    onAdded();
+  }
+  return (
+    <>
+      <Input placeholder="Kategori baru…" value={name} onChange={(e) => setName(e.target.value)} />
+      <Button variant="outline" onClick={add} disabled={!name.trim()}>Tambah Kategori</Button>
+    </>
+  );
+}
+
+/** Sheet tambah/ubah detail menu. */
+function EditModal({
+  item, categories, onClose, onSaved,
+}: {
+  item: MenuItem | null; categories: Category[]; onClose: () => void; onSaved: (id?: string) => void;
+}) {
+  const [form, setForm] = useState({
+    name: item?.name ?? "",
+    price: item ? String(item.price) : "",
+    categoryId: item?.categoryId ?? categories[0]?.id ?? "",
+    description: item?.description ?? "",
+    prepMinutes: item?.prepMinutes ? String(item.prepMinutes) : "",
+  });
+  const [busy, setBusy] = useState(false);
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const body = {
+        name: form.name,
+        price: Number(form.price),
+        categoryId: form.categoryId,
+        description: form.description,
+        prepMinutes: form.prepMinutes ? Number(form.prepMinutes) : null,
+      };
+      if (item) {
+        await api(`/api/menu/${item.id}`, { method: "PATCH", body });
+        onSaved(item.id);
+      } else {
+        const { item: created } = await api<{ item: { id: string } }>("/api/menu", { method: "POST", body });
+        onSaved(created.id);
+      }
+    } catch (err) {
+      alert((err as Error).message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Sheet title={item ? `Ubah — ${item.name}` : "Item Baru"} onClose={onClose}>
+      <form onSubmit={save} className="space-y-3">
+        <div>
+          <Label>Nama</Label>
+          <Input value={form.name} onChange={set("name")} required />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Harga (Rp)</Label>
+            <Input type="number" value={form.price} onChange={set("price")} required />
+          </div>
+          <div>
+            <Label>Estimasi (menit)</Label>
+            <Input type="number" min={1} value={form.prepMinutes} onChange={set("prepMinutes")} />
+          </div>
+        </div>
+        <div>
+          <Label>Kategori</Label>
+          <select
+            value={form.categoryId}
+            onChange={set("categoryId")}
+            required
+            className="w-full rounded-xl border border-sunset-200 bg-white px-3.5 py-2.5 text-sm"
+          >
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label>Deskripsi</Label>
+          <Input value={form.description} onChange={set("description")} />
+        </div>
+        <Button type="submit" full disabled={busy}>{busy ? "Menyimpan…" : "Simpan"}</Button>
+      </form>
+    </Sheet>
   );
 }
 
@@ -195,7 +326,6 @@ function PhotoModal({ item, onClose }: { item: MenuItem; onClose: () => void }) 
   return (
     <Sheet title={`Foto — ${item.name}`} onClose={onClose} wide>
       <div>
-
         {!photos ? (
           <Spinner />
         ) : photos.length === 0 ? (

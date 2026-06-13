@@ -14,9 +14,11 @@ const schema = z.object({
 });
 
 /**
- * Tambah item ke order.
- * - Jalur POS/booking (OPEN): item langsung QUEUED ke dapur.
- * - Jalur QR (DRAFT): item berstatus DRAFT, teratribusi ke peserta — dapur belum melihat.
+ * Tambah item ke order. Item baru SELALU berstatus DRAFT — belum terlihat dapur.
+ * Promosi DRAFT → QUEUED dilakukan lewat langkah eksplisit:
+ * - Jalur QR: saat order divalidasi/masuk dapur (qr-flow enterKitchen).
+ * - Jalur POS/walk-in: lewat endpoint /send-kitchen (tombol "Kirim ke Dapur").
+ * Ini memberi 1 langkah validasi agar dapur hanya menerima orderan yang fix.
  */
 async function handlePost(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
@@ -26,8 +28,7 @@ async function handlePost(req: NextRequest, ctx: Ctx) {
   const access = await resolveOrderAccess(order);
   if (!access.canAccess) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const isDraft = order.status === ORDER_STATUS.DRAFT;
-  if (order.status !== ORDER_STATUS.OPEN && !isDraft)
+  if (order.status !== ORDER_STATUS.OPEN && order.status !== ORDER_STATUS.DRAFT)
     return NextResponse.json({ error: "Order sudah dikunci/ditutup" }, { status: 400 });
 
   const parsed = schema.safeParse(await req.json());
@@ -48,12 +49,12 @@ async function handlePost(req: NextRequest, ctx: Ctx) {
           price: menuItem.price,
           qty: it.qty,
           notes: it.notes ?? null,
-          status: isDraft ? ITEM_STATUS.DRAFT : ITEM_STATUS.QUEUED,
+          status: ITEM_STATUS.DRAFT,
         },
       })
     );
   }
-  if (isDraft) await db.order.update({ where: { id }, data: { lastActivityAt: new Date() } });
+  await db.order.update({ where: { id }, data: { lastActivityAt: new Date() } });
   return NextResponse.json({ items: created }, { status: 201 });
 }
 

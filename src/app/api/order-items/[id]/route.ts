@@ -69,8 +69,12 @@ async function guardDraftEdit(item: {
   participantId: string | null;
   order: { id: string; customerId: string | null; source: string; status: string };
 }) {
-  if (item.order.status !== ORDER_STATUS.DRAFT || item.status !== ITEM_STATUS.DRAFT)
-    return NextResponse.json({ error: "Hanya item draft yang bisa diubah" }, { status: 400 });
+  // Hanya item yang masih DRAFT (belum dikirim ke dapur) yang boleh diubah/hapus —
+  // berlaku untuk draft QR maupun item POS/walk-in yang belum dikirim.
+  if (item.status !== ITEM_STATUS.DRAFT)
+    return NextResponse.json({ error: "Item sudah dikirim ke dapur — gunakan batalkan item" }, { status: 400 });
+  if (item.order.status !== ORDER_STATUS.DRAFT && item.order.status !== ORDER_STATUS.OPEN)
+    return NextResponse.json({ error: "Order sudah dikunci/ditutup" }, { status: 400 });
   const access = await resolveOrderAccess(item.order);
   const ownsItem = access.participant && item.participantId === access.participant.id;
   if (!ownsItem && !access.isController)

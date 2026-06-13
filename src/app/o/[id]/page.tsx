@@ -7,14 +7,14 @@ import {
 } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import { Badge, Button, Card, Money, Spinner } from "@/components/ui";
-import MenuImage from "@/components/MenuImage";
+import MenuCard from "@/components/MenuCard";
 import Sheet from "@/components/Sheet";
 import ConnectionBanner from "@/components/ConnectionBanner";
 import { formatIDR } from "@/lib/constants";
 
 type Participant = { id: string; name: string; isHost: boolean };
 type Item = {
-  id: string; nameSnapshot: string; price: number; qty: number; status: string;
+  id: string; menuItemId: string; nameSnapshot: string; price: number; qty: number; status: string;
   participantId: string | null;
 };
 type Share = { participantId: string; name: string; subtotal: number; amount: number; settled: boolean };
@@ -340,7 +340,14 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {menuOpen && <MenuSheet orderId={id} onClose={() => setMenuOpen(false)} onAdded={load} />}
+      {menuOpen && (
+        <MenuSheet
+          orderId={id}
+          myItems={order.items.filter((i) => i.participantId === me?.participantId && i.status === "DRAFT")}
+          onClose={() => setMenuOpen(false)}
+          onChanged={load}
+        />
+      )}
       {splitOpen && shares !== null && (
         <SplitChoiceModal
           shares={shares}
@@ -474,60 +481,68 @@ function ItemControls({ item, onChanged }: { item: Item; onChanged: () => void }
   );
 }
 
-function MenuSheet({ orderId, onClose, onAdded }: { orderId: string; onClose: () => void; onAdded: () => void }) {
+function MenuSheet({
+  orderId, myItems, onClose, onChanged,
+}: {
+  orderId: string; myItems: Item[]; onClose: () => void; onChanged: () => void;
+}) {
   const [categories, setCategories] = useState<Category[] | null>(null);
-  const [busyId, setBusyId] = useState("");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api<{ categories: Category[] }>("/api/menu").then((d) => setCategories(d.categories));
   }, []);
 
-  async function add(item: MenuItemT) {
-    setBusyId(item.id);
+  // Qty milik saya (DRAFT) per menu — untuk counter di kartu
+  const qtyOf = (menuItemId: string) =>
+    myItems.filter((i) => i.menuItemId === menuItemId).reduce((s, i) => s + i.qty, 0);
+
+  async function add(menuItemId: string) {
+    if (busy) return;
+    setBusy(true);
     try {
-      await api(`/api/orders/${orderId}/items`, { method: "POST", body: { items: [{ menuItemId: item.id, qty: 1 }] } });
-      onAdded();
+      await api(`/api/orders/${orderId}/items`, { method: "POST", body: { items: [{ menuItemId, qty: 1 }] } });
+      onChanged();
     } catch (e) {
       alert((e as Error).message);
     } finally {
-      setBusyId("");
+      setBusy(false);
+    }
+  }
+
+  async function remove(menuItemId: string) {
+    if (busy) return;
+    const mine = [...myItems].reverse().find((i) => i.menuItemId === menuItemId);
+    if (!mine) return;
+    setBusy(true);
+    try {
+      if (mine.qty > 1) await api(`/api/order-items/${mine.id}`, { method: "PATCH", body: { qty: mine.qty - 1 } });
+      else await api(`/api/order-items/${mine.id}`, { method: "DELETE" });
+      onChanged();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
     <Sheet title="Pilih Menu" onClose={onClose} wide>
       <div>
-          {!categories ? (
-            <Spinner />
-          ) : (
-            categories.map((c) => (
-              <div key={c.id} className="mb-4">
-                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-ink/40">{c.name}</p>
-                <div className="space-y-1.5">
-                  {c.items.filter((i) => i.available).map((i) => (
-                    <div key={i.id} className="flex items-stretch gap-0 overflow-hidden rounded-xl border border-sunset-100">
-                      <div className="w-16 shrink-0">
-                        <MenuImage photos={i.photos} alt={i.name} />
-                      </div>
-                      <div className="flex min-w-0 flex-1 items-center justify-between gap-3 p-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold">{i.name}</p>
-                          {i.description && <p className="line-clamp-1 text-xs text-ink/45">{i.description}</p>}
-                          <p className="flex items-center gap-1.5">
-                            <Money value={i.price} className="text-xs font-bold text-sunset-600" />
-                            {i.prepMinutes ? <span className="text-[10px] font-semibold text-teal-700">±{i.prepMinutes} mnt</span> : null}
-                          </p>
-                        </div>
-                        <Button disabled={busyId === i.id} onClick={() => add(i)} className="!px-3 shrink-0">
-                          <Plus size={15} weight="bold" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+        {!categories ? (
+          <Spinner />
+        ) : (
+          categories.map((c) => (
+            <div key={c.id} className="mb-4">
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-ink/40">{c.name}</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {c.items.map((i) => (
+                  <MenuCard key={i.id} item={i} qty={qtyOf(i.id)} onAdd={() => add(i.id)} onRemove={() => remove(i.id)} />
+                ))}
               </div>
-            ))
-          )}
+            </div>
+          ))
+        )}
       </div>
     </Sheet>
   );

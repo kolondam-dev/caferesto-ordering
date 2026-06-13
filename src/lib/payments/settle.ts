@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { BOOKING_STATUS, ORDER_STATUS, TABLE_STATUS, orderTotal } from "../constants";
+import { BOOKING_STATUS, ITEM_STATUS, ORDER_STATUS, TABLE_STATUS, orderTotal } from "../constants";
 
 /**
  * Efek domain setelah sebuah Payment menjadi SETTLED.
@@ -74,6 +74,12 @@ export async function closeOrderIfPaid(orderId: string) {
     db.order.update({
       where: { id: orderId },
       data: { status: ORDER_STATUS.PAID, closedAt: new Date() },
+    }),
+    // Safety net: item yang belum dikirim ke dapur tetap diteruskan saat lunas,
+    // supaya pesanan yang sudah dibayar tidak hilang dari antrian dapur.
+    db.orderItem.updateMany({
+      where: { orderId, status: ITEM_STATUS.DRAFT },
+      data: { status: ITEM_STATUS.QUEUED },
     }),
   ];
   if (order.tableId)

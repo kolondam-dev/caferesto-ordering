@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  MagnifyingGlass, Money as MoneyIcon, PicnicTable, Plus, Printer, Rectangle,
+  CookingPot, MagnifyingGlass, Minus, Money as MoneyIcon, PicnicTable, Plus, Printer, Rectangle,
   Receipt as ReceiptIcon, SealCheck, WarningCircle,
 } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
@@ -161,11 +161,12 @@ type MenuItem = {
   photos?: { url: string; isPrimary: boolean }[];
 };
 type Category = { id: string; name: string; items: MenuItem[] };
+type OrderItem = { id: string; menuItemId: string; nameSnapshot: string; price: number; qty: number; status: string };
 type OrderData = {
   order: {
     id: string; code: string; status: string;
     table?: { name: string } | null;
-    items: { id: string; nameSnapshot: string; price: number; qty: number; status: string }[];
+    items: OrderItem[];
   };
   bill: { subtotal: number; serviceFee: number; tax: number; total: number; settled: number; deposit: number; due: number };
 };
@@ -181,10 +182,15 @@ export default function POSPage() {
   const [preview, setPreview] = useState<TableT | null>(null);
   const [activeCat, setActiveCat] = useState("all");
   const [search, setSearch] = useState("");
+  const [menuTab, setMenuTab] = useState<"order" | "stock">("order");
   const [printerReady, setPrinterReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
+  const loadMenu = useCallback(
+    () => api<{ categories: Category[] }>("/api/menu").then((d) => setCategories(d.categories)),
+    []
+  );
   const loadTables = useCallback(
     () => api<{ tables: TableT[] }>("/api/tables").then((d) => setTables(d.tables)),
     []
@@ -195,19 +201,30 @@ export default function POSPage() {
 
   useEffect(() => {
     loadTables();
-    api<{ categories: Category[] }>("/api/menu").then((d) => setCategories(d.categories));
+    loadMenu();
     api<{ settings: { printerHost: string } }>("/api/settings")
       .then((d) => setPrinterReady(!!d.settings.printerHost))
       .catch(() => {});
-  }, [loadTables]);
+  }, [loadTables, loadMenu]);
 
   const visibleItems = useMemo(() => {
     const cats = activeCat === "all" ? categories : categories.filter((c) => c.id === activeCat);
     const q = search.trim().toLowerCase();
-    return cats.flatMap((c) =>
-      c.items.filter((i) => i.available && (!q || i.name.toLowerCase().includes(q)))
-    );
-  }, [categories, activeCat, search]);
+    // Mode pesan: hanya menu tersedia. Mode stok: tampilkan semua (untuk di-toggle).
+    return cats
+      .flatMap((c) => c.items.filter((i) => !q || i.name.toLowerCase().includes(q)))
+      .filter((i) => menuTab === "stock" || i.available);
+  }, [categories, activeCat, search, menuTab]);
+
+  // Qty menu tertentu yang ada di order berjalan (untuk counter di kartu)
+  const qtyOf = useCallback(
+    (menuItemId: string) =>
+      (current?.order.items ?? [])
+        .filter((i) => i.menuItemId === menuItemId && i.status !== "CANCELED")
+        .reduce((s, i) => s + i.qty, 0),
+    [current]
+  );
+  const hasUnsent = (current?.order.items ?? []).some((i) => i.status === "DRAFT");
 
   // Klik meja hanya membuka pratinjau — order baru dibuat lewat tombol eksplisit.
   function selectTable(t: TableT) {
@@ -249,9 +266,39 @@ export default function POSPage() {
   }
 
   async function addItem(item: MenuItem) {
-    if (!current || current.order.status !== "OPEN") return;
+    if (!current || current.order.status !== "OPEN" || !item.available) return;
     await api(`/api/orders/${current.order.id}/items`, { method: "POST", body: { items: [{ menuItemId: item.id, qty: 1 }] } });
     loadOrder(current.order.id);
+  }
+
+  /** Kurangi 1: cari item DRAFT (belum dikirim) dengan menu yang sama, decrement/hapus. */
+  async function removeItem(menuItemId: string) {
+    if (!current) return;
+    const draft = [...current.order.items].reverse().find((i) => i.menuItemId === menuItemId && i.status === "DRAFT");
+    if (!draft) return; // item yang sudah dikirim dapur tidak bisa dikurangi di sini
+    if (draft.qty > 1) await api(`/api/order-items/${draft.id}`, { method: "PATCH", body: { qty: draft.qty - 1 } });
+    else await api(`/api/order-items/${draft.id}`, { method: "DELETE" });
+    loadOrder(current.order.id);
+  }
+
+  async function sendKitchen() {
+    if (!current) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      const { sent } = await api<{ sent: number }>(`/api/orders/${current.order.id}/send-kitchen`, { method: "POST" });
+      await loadOrder(current.order.id);
+      setMsg(sent > 0 ? `${sent} item dikirim ke dapur 🍳` : "Tidak ada item baru untuk dikirim");
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleStock(item: MenuItem) {
+    await api(`/api/menu/${item.id}/availability`, { method: "PATCH", body: { available: !item.available } });
+    loadMenu();
   }
 
   async function pay(method: "cash" | "gateway") {
@@ -329,6 +376,11 @@ export default function POSPage() {
       {/* Menu 70% | kalkulasi 30% */}
       <div className="grid gap-4 lg:grid-cols-[7fr_3fr]">
         <Card className="p-3">
+          {/* Tab: Pesan vs Stok (kelola sold out) */}
+          <div className="mb-2 flex gap-1.5">
+            <TabBtn active={menuTab === "order"} onClick={() => setMenuTab("order")}>Pesan</TabBtn>
+            <TabBtn active={menuTab === "stock"} onClick={() => setMenuTab("stock")}>Stok Menu</TabBtn>
+          </div>
           <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/35" />
@@ -339,7 +391,7 @@ export default function POSPage() {
                 className="w-full rounded-xl border border-sunset-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-teal-400"
               />
             </div>
-            {current && (
+            {menuTab === "order" && current && (
               <p className="text-xs font-bold text-ink/45">→ {current.order.code}</p>
             )}
           </div>
@@ -349,23 +401,81 @@ export default function POSPage() {
               <CatChip key={c.id} label={c.name} active={activeCat === c.id} onClick={() => setActiveCat(c.id)} />
             ))}
           </div>
-          <div className="grid max-h-[60dvh] grid-cols-2 content-start gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-4">
-            {visibleItems.map((i) => (
-              <button
-                key={i.id}
-                disabled={!current || current.order.status !== "OPEN"}
-                onClick={() => addItem(i)}
-                className="overflow-hidden rounded-xl border border-sunset-100 bg-white text-left transition-colors hover:border-teal-400 disabled:opacity-40"
-              >
-                <div className="h-20 w-full">
-                  <MenuImage photos={i.photos} alt={i.name} />
+          {menuTab === "order" && !current && (
+            <p className="mb-2 rounded-xl bg-cream px-3 py-2 text-xs text-ink/50">
+              Pilih meja & buka order untuk mulai menambah item.
+            </p>
+          )}
+          <div className="grid max-h-[58dvh] grid-cols-2 content-start gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-4">
+            {visibleItems.map((i) => {
+              const qty = qtyOf(i.id);
+              const canOrder = !!current && current.order.status === "OPEN";
+              return (
+                <div
+                  key={i.id}
+                  className={`relative overflow-hidden rounded-xl border bg-white ${
+                    qty > 0 ? "border-teal-400" : "border-sunset-100"
+                  } ${menuTab === "stock" && !i.available ? "opacity-60" : ""}`}
+                >
+                  <button
+                    type="button"
+                    disabled={menuTab !== "order" || !canOrder || !i.available}
+                    onClick={() => addItem(i)}
+                    className="block w-full text-left disabled:cursor-default"
+                  >
+                    <div className="relative h-20 w-full">
+                      <MenuImage photos={i.photos} alt={i.name} />
+                      {!i.available && <span className="soldout-ribbon">SOLD OUT</span>}
+                      {menuTab === "order" && qty > 0 && (
+                        <span className="absolute right-1 top-1 rounded-full bg-teal-600 px-2 py-0.5 text-[11px] font-extrabold text-white shadow">
+                          {qty}
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-2.5">
+                      <p className="line-clamp-2 text-sm font-bold leading-tight">{i.name}</p>
+                      <Money value={i.price} className="text-xs font-bold text-teal-700" />
+                    </div>
+                  </button>
+
+                  {/* Mode pesan: tombol +/- */}
+                  {menuTab === "order" && canOrder && i.available && (
+                    <div className="flex items-center justify-end gap-1.5 border-t border-sunset-50 px-2 py-1.5">
+                      {qty > 0 && (
+                        <button
+                          onClick={() => removeItem(i.id)}
+                          aria-label={`Kurangi ${i.name}`}
+                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-sunset-500/15 text-sunset-700 active:bg-sunset-500/30"
+                        >
+                          <Minus size={15} weight="bold" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => addItem(i)}
+                        aria-label={`Tambah ${i.name}`}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-600/15 text-teal-700 active:bg-teal-600/30"
+                      >
+                        <Plus size={15} weight="bold" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Mode stok: toggle sold out / ready */}
+                  {menuTab === "stock" && (
+                    <div className="border-t border-sunset-50 p-1.5">
+                      <Button
+                        variant={i.available ? "outline" : "teal"}
+                        full
+                        className="!py-1.5 text-xs"
+                        onClick={() => toggleStock(i)}
+                      >
+                        {i.available ? "Jadikan Habis" : "Jadikan Tersedia"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <div className="p-2.5">
-                  <p className="line-clamp-2 text-sm font-bold leading-tight">{i.name}</p>
-                  <Money value={i.price} className="text-xs font-bold text-teal-700" />
-                </div>
-              </button>
-            ))}
+              );
+            })}
             {visibleItems.length === 0 && (
               <p className="col-span-full py-8 text-center text-sm text-ink/40">Tidak ada menu yang cocok.</p>
             )}
@@ -414,16 +524,27 @@ export default function POSPage() {
                 </h2>
                 <Badge status={current.order.status} />
               </div>
-              <div className="max-h-56 space-y-1 overflow-y-auto">
+              <div className="max-h-52 space-y-1 overflow-y-auto">
                 {current.order.items.filter((i) => i.status !== "CANCELED").map((i) => (
-                  <div key={i.id} className="flex items-center justify-between text-sm">
-                    <span className="truncate">
-                      {i.qty}× {i.nameSnapshot} <Badge status={i.status} />
+                  <div key={i.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex min-w-0 items-center gap-1 truncate">
+                      {i.qty}× {i.nameSnapshot}
+                      {i.status === "DRAFT" ? (
+                        <span className="shrink-0 rounded-full bg-gold-100 px-1.5 text-[9px] font-bold text-gold-800">baru</span>
+                      ) : (
+                        <Badge status={i.status} />
+                      )}
                     </span>
                     <Money value={i.price * i.qty} className="shrink-0 font-semibold" />
                   </div>
                 ))}
               </div>
+              {/* Langkah validasi: kirim item baru ke dapur */}
+              {current.order.status === "OPEN" && hasUnsent && (
+                <Button variant="teal" full className="mt-2" onClick={sendKitchen} disabled={busy}>
+                  <CookingPot size={18} /> Kirim ke Dapur
+                </Button>
+              )}
               <div className="my-3 border-t border-dashed border-sunset-200" />
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between"><span className="text-ink/50">Subtotal</span><Money value={current.bill.subtotal} /></div>
@@ -469,6 +590,19 @@ export default function POSPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 rounded-xl px-3 py-2 text-sm font-bold transition-colors ${
+        active ? "bg-teal-600 text-white" : "bg-cream text-ink/55 hover:text-ink"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 

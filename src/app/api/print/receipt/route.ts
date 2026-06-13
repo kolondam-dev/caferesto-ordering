@@ -28,21 +28,34 @@ export async function POST(req: NextRequest) {
 
   const order = await db.order.findUnique({
     where: { id: orderId },
-    include: { table: true, items: true, payments: true },
+    include: { table: true, items: true, payments: true, participants: { orderBy: { joinedAt: "asc" } } },
   });
   if (!order) return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
   const bill = await getOrderDue(orderId);
+  const activeItems = order.items.filter((x) => x.status !== "CANCELED");
 
   const r = new EscPosBuilder();
   r.align("center").doubleSize(true).line(settings.cafeName).doubleSize(false);
   r.line(`${order.table?.name ?? "Takeaway"} - ${order.code}`);
   r.line(new Date(order.closedAt ?? order.createdAt).toLocaleString("id-ID"));
+  const money = (n: number) => formatIDR(n).replace(/ /g, String.fromCharCode(160));
   r.align("left").divider(W);
-  for (const i of order.items.filter((x) => x.status !== "CANCELED")) {
-    r.row(`${i.qty}x ${i.nameSnapshot}`, formatIDR(i.price * i.qty).replace(/ /g, " "), W);
+  for (const i of activeItems) {
+    r.row(`${i.qty}x ${i.nameSnapshot}`, money(i.price * i.qty), W);
+  }
+
+  // Split akhir: rincian per member untuk ditagihkan order holder
+  if (order.splitMode === "SINGLE" && order.participants.length > 0) {
+    r.divider(W).line("Rincian per orang (split):");
+    for (const p of order.participants) {
+      const own = activeItems.filter((i) => i.participantId === p.id);
+      if (own.length === 0) continue;
+      const sub = own.reduce((s, i) => s + i.price * i.qty, 0);
+      r.row(p.name, money(sub), W);
+      for (const i of own) r.line(`  ${i.qty}x ${i.nameSnapshot}`);
+    }
   }
   r.divider(W);
-  const money = (n: number) => formatIDR(n).replace(/ /g, " ");
   r.row("Subtotal", money(bill.subtotal), W);
   if (bill.serviceFee > 0) r.row("Service fee", money(bill.serviceFee), W);
   r.row("Pajak", money(bill.tax), W);

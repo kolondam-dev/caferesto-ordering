@@ -2,18 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Minus, ShoppingCartSimple, Clock } from "@phosphor-icons/react";
+import { Plus, Minus, ShoppingCartSimple } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
-import { Button, Card, Money, Spinner, Empty } from "@/components/ui";
-import MenuImage from "@/components/MenuImage";
+import { Button, Money, Spinner, Empty } from "@/components/ui";
+import MenuCard, { type MenuCardItem } from "@/components/MenuCard";
 import Sheet from "@/components/Sheet";
 import CustomerShell from "@/components/CustomerShell";
 
-type MenuItem = {
-  id: string; name: string; description?: string; price: number; available: boolean;
-  prepMinutes?: number | null;
-  photos?: { url: string; isPrimary: boolean }[];
-};
+type MenuItem = MenuCardItem;
 type Category = { id: string; name: string; items: MenuItem[] };
 type TableT = { id: string; name: string; capacity: number; status: string };
 type CartLine = { item: MenuItem; qty: number };
@@ -42,7 +38,10 @@ export default function HomePage() {
   const visibleItems = useMemo(() => {
     if (!categories) return [];
     const cats = activeCat === "all" ? categories : categories.filter((c) => c.id === activeCat);
-    return cats.flatMap((c) => c.items.filter((i) => i.available).map((i) => ({ ...i, cat: c.name })));
+    // Tampilkan item sold-out juga (dengan ribbon), urutkan yang tersedia di atas
+    return cats
+      .flatMap((c) => c.items.map((i) => ({ ...i, cat: c.name })))
+      .sort((a, b) => Number(b.available) - Number(a.available));
   }, [categories, activeCat]);
 
   function add(item: MenuItem, delta: number) {
@@ -73,6 +72,8 @@ export default function HomePage() {
         method: "POST",
         body: { items: lines.map((l) => ({ menuItemId: l.item.id, qty: l.qty })) },
       });
+      // Checkout customer = konfirmasi → langsung kirim ke dapur
+      await api(`/api/orders/${order.id}/send-kitchen`, { method: "POST" });
       setCart({});
       router.push(`/order/${order.id}`);
     } catch (err) {
@@ -108,46 +109,15 @@ export default function HomePage() {
         <Empty text="Belum ada menu tersedia" />
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleItems.map((item) => {
-            const qty = cart[item.id]?.qty ?? 0;
-            // Foto flush di 1/3 kiri kartu
-            return (
-              <Card key={item.id} className="flex min-h-28 items-stretch overflow-hidden">
-                <div className="w-1/3 shrink-0">
-                  <MenuImage photos={item.photos} alt={item.name} />
-                </div>
-                <div className="flex min-w-0 flex-1 items-center justify-between gap-3 p-3.5">
-                  <div className="min-w-0">
-                    <p className="truncate font-bold">{item.name}</p>
-                    {item.description && <p className="line-clamp-2 text-xs text-ink/50">{item.description}</p>}
-                    <div className="mt-1 flex items-center gap-2">
-                      <Money value={item.price} className="text-sm font-bold text-sunset-600" />
-                      {item.prepMinutes ? (
-                        <span className="flex items-center gap-0.5 rounded-full bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700">
-                          <Clock size={10} weight="bold" /> ±{item.prepMinutes} mnt
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                  {qty === 0 ? (
-                    <Button onClick={() => add(item, 1)} className="!px-3 shrink-0">
-                      <Plus size={16} weight="bold" />
-                    </Button>
-                  ) : (
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Button variant="outline" onClick={() => add(item, -1)} className="!px-2.5 !py-1.5">
-                        <Minus size={14} weight="bold" />
-                      </Button>
-                      <span className="w-5 text-center font-bold">{qty}</span>
-                      <Button onClick={() => add(item, 1)} className="!px-2.5 !py-1.5">
-                        <Plus size={14} weight="bold" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
+          {visibleItems.map((item) => (
+            <MenuCard
+              key={item.id}
+              item={item}
+              qty={cart[item.id]?.qty ?? 0}
+              onAdd={() => add(item, 1)}
+              onRemove={() => add(item, -1)}
+            />
+          ))}
         </div>
       )}
 
