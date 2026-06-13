@@ -9,7 +9,7 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get(AUTH_COOKIE)?.value;
   const session = token ? await verifyToken(token) : null;
   if (!session) {
-    const url = new URL("/login", req.url);
+    const url = new URL("/staff/login", req.url);
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }

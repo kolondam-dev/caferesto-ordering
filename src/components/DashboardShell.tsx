@@ -41,7 +41,7 @@ export default function DashboardShell({ children, role }: { children: React.Rea
 
   async function logout() {
     await api("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    router.push("/staff/login");
   }
 
   const NavLink = ({ item }: { item: Item }) => {

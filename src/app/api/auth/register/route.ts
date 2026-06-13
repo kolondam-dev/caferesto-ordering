@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     data: { name, email, phone, passwordHash: await bcrypt.hash(password, 10), role: "CUSTOMER" },
   });
 
-  const token = await signToken({ sub: user.id, name: user.name, email: user.email, role: "CUSTOMER" });
+  const token = await signToken({ sub: user.id, name: user.name, email: user.email ?? "", role: "CUSTOMER" });
   const res = NextResponse.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   res.cookies.set(AUTH_COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 7 * 86400 });
   return res;
