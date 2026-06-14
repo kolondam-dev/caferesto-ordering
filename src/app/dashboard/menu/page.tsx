@@ -54,7 +54,10 @@ export default function MenuAdminPage() {
   }
   async function remove(item: MenuItem) {
     if (!confirm(`Hapus ${item.name}?`)) return;
-    await api(`/api/menu/${item.id}`, { method: "DELETE" }).catch((e) => alert(e.message));
+    const res = await api<{ pending?: boolean; message?: string }>(`/api/menu/${item.id}`, { method: "DELETE" })
+      .catch((e) => { alert(e.message); return null; });
+    if (!res) return;
+    if (res.pending) { alert(res.message ?? "Menunggu persetujuan owner."); return; }
     setSelectedId(null);
     load();
   }
@@ -196,10 +199,10 @@ function DetailPanel({
     setBusy(true);
     setSaved("");
     try {
-      await api(`/api/menu/${item.id}`, { method: "PATCH", body });
-      setSaved("Tersimpan ✓");
-      onSaved();
-      setTimeout(() => setSaved(""), 1800);
+      const res = await api<{ pending?: boolean }>(`/api/menu/${item.id}`, { method: "PATCH", body });
+      setSaved(res?.pending ? "Menunggu persetujuan" : "Tersimpan ✓");
+      if (!res?.pending) onSaved();
+      setTimeout(() => setSaved(""), 2200);
     } catch (e) {
       alert((e as Error).message);
     } finally {
@@ -369,7 +372,8 @@ function EditModal({
         prepMinutes: form.prepMinutes ? Number(form.prepMinutes) : null,
       };
       if (item) {
-        await api(`/api/menu/${item.id}`, { method: "PATCH", body });
+        const res = await api<{ pending?: boolean; message?: string }>(`/api/menu/${item.id}`, { method: "PATCH", body });
+        if (res?.pending) alert(res.message ?? "Perubahan menunggu persetujuan owner.");
         onSaved(item.id);
       } else {
         const { item: created } = await api<{ item: { id: string } }>("/api/menu", { method: "POST", body });

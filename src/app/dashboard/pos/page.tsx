@@ -414,7 +414,16 @@ export default function POSPage() {
 
   async function cancelOrder() {
     if (!current || !confirm("Batalkan order ini?")) return;
-    await api(`/api/orders/${current.order.id}`, { method: "PATCH", body: { action: "cancel" } });
+    const res = await api<{ ok?: boolean; pending?: boolean; message?: string }>(
+      `/api/orders/${current.order.id}`,
+      { method: "PATCH", body: { action: "cancel" } }
+    ).catch((e) => { alert((e as Error).message); return null; });
+    if (!res) return;
+    if (res.pending) {
+      // Bukan owner: pembatalan menunggu persetujuan; order tetap berjalan.
+      alert(res.message ?? "Permintaan pembatalan menunggu persetujuan owner.");
+      return;
+    }
     setCurrent(null);
     loadTables();
     loadTakeaways();

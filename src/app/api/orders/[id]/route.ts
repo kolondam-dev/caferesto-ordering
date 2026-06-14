@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole, isSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
-import { ORDER_STATUS, STAFF_ROLES, TABLE_STATUS } from "@/lib/constants";
+import { needsApproval, createApproval, cancelOrder, deleteOrder } from "@/lib/approvals";
+import { ORDER_STATUS, STAFF_ROLES } from "@/lib/constants";
 import { getOrderDue } from "@/lib/payments/settle";
 import { resolveOrderAccess } from "@/lib/order-access";
 
@@ -58,14 +59,39 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const order = await db.order.findUnique({ where: { id } });
     if (!order || order.status !== ORDER_STATUS.OPEN)
       return NextResponse.json({ error: "Order tidak bisa dibatalkan" }, { status: 400 });
-    const tx = [
-      db.order.update({ where: { id }, data: { status: ORDER_STATUS.CANCELED, closedAt: new Date() } }),
-      db.orderItem.updateMany({ where: { orderId: id, status: { not: "SERVED" } }, data: { status: "CANCELED" } }),
-    ];
-    if (order.tableId)
-      tx.push(db.table.update({ where: { id: order.tableId }, data: { status: TABLE_STATUS.OPEN } }) as never);
-    await db.$transaction(tx);
+
+    // Non-owner: butuh persetujuan owner. Owner: langsung dieksekusi.
+    if (needsApproval(guard.role)) {
+      await createApproval({
+        type: "ORDER_CANCEL", actor: guard, targetType: "ORDER", targetId: id,
+        targetLabel: order.code, reason: typeof body.reason === "string" ? body.reason : null,
+      });
+      return NextResponse.json({ pending: true, message: "Permintaan pembatalan menunggu persetujuan owner." });
+    }
+    const res = await cancelOrder(id);
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
     return NextResponse.json({ ok: true });
   }
   return NextResponse.json({ error: "Aksi tidak dikenal" }, { status: 400 });
+}
+
+/** Hapus / void order. Butuh izin order.delete; non-owner lewat persetujuan owner. */
+export async function DELETE(req: NextRequest, ctx: Ctx) {
+  const guard = await requirePermission("order.delete");
+  if (!isSession(guard)) return guard;
+  const { id } = await ctx.params;
+  const order = await db.order.findUnique({ where: { id }, select: { code: true } });
+  if (!order) return NextResponse.json({ error: "Order tidak ditemukan" }, { status: 404 });
+  const reason = req.nextUrl.searchParams.get("reason");
+
+  if (needsApproval(guard.role)) {
+    await createApproval({
+      type: "ORDER_DELETE", actor: guard, targetType: "ORDER", targetId: id,
+      targetLabel: order.code, reason,
+    });
+    return NextResponse.json({ pending: true, message: "Permintaan penghapusan menunggu persetujuan owner." });
+  }
+  const res = await deleteOrder(id);
+  if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
+  return NextResponse.json({ deleted: true });
 }

@@ -29,6 +29,8 @@ model User {
   attendances  Attendance[]
   payslips     Payslip[]
   chats        ChatMessage[]
+  approvalsRequested ApprovalRequest[] @relation("ApprovalRequester")
+  approvalsDecided   ApprovalRequest[] @relation("ApprovalDecider")
 }
 
 // OTP verifikasi WhatsApp untuk login/registrasi customer (mock-ready).
@@ -218,6 +220,30 @@ model ChatMessage {
   role      String // user|assistant
   content   String
   createdAt DateTime @default(now())
+}
+
+// Antrian persetujuan owner untuk aksi sensitif (batal/hapus order, edit menu).
+// Aksi dari non-owner dicatat sebagai PENDING; owner menyetujui → dieksekusi.
+// `payload` menyimpan detail perubahan (JSON) agar bisa dijalankan saat approve.
+model ApprovalRequest {
+  id            String    @id @default(cuid())
+  type          String // ORDER_CANCEL|ORDER_DELETE|MENU_UPDATE|MENU_DELETE
+  status        String    @default("PENDING") // PENDING|APPROVED|REJECTED
+  requestedById String
+  requestedBy   User      @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  requestedName String // snapshot nama peminta (tetap terbaca walau user berubah)
+  targetType    String // ORDER|MENU
+  targetId      String
+  targetLabel   String? // ringkasan target (kode order / nama menu) untuk ditampilkan
+  reason        String? // alasan peminta
+  payload       String    @default("{}") // detail perubahan (JSON)
+  decidedById   String?
+  decidedBy     User?     @relation("ApprovalDecider", fields: [decidedById], references: [id])
+  decisionNote  String?
+  decidedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([status, createdAt])
 }
 
 // ───────────────────────── PRO ─────────────────────────

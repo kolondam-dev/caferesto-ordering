@@ -180,4 +180,72 @@ ok(r.status === 200 && r.data.user.role === "OWNER", "staff tetap login via emai
 r = await guestA("/api/pro/inventory");
 ok(r.status === 401 || r.status === 403, "guest tidak bisa akses modul PRO");
 
+// ── RBAC + alur persetujuan owner ────────────────────────────────
+const manager = makeClient();
+r = await manager("/api/auth/login", { method: "POST", body: { email: "manager@caferesto.id", password: "password123" } });
+ok(r.status === 200 && r.data.user.role === "MANAGER", "login manager");
+
+// Izin per peran terpapar di /api/auth/me
+r = await kitchen("/api/auth/me");
+ok(r.data.permissions?.includes("menu.availability") && !r.data.permissions?.includes("menu.cost"),
+  "dapur punya menu.availability tanpa menu.cost");
+r = await cashier("/api/auth/me");
+ok(!r.data.permissions?.includes("pos.cancel_order"), "kasir tanpa izin batal order");
+
+// RBAC: dapur tak boleh ubah costing, tapi boleh set sold-out
+r = await kitchen(`/api/menu/${menuItemId}`, { method: "PATCH", body: { costPrice: 5000 } });
+ok(r.status === 403, "dapur tak boleh ubah costing (RBAC)");
+r = await kitchen(`/api/menu/${menuItemId}/availability`, { method: "PATCH", body: { available: false } });
+ok(r.status === 200, "dapur boleh set sold out (RBAC)");
+r = await kitchen(`/api/menu/${menuItemId}/availability`, { method: "PATCH", body: { available: true } });
+ok(r.status === 200, "dapur set ready lagi");
+
+// Buka order POS baru untuk diuji pembatalan
+r = await cashier("/api/orders", { method: "POST", body: { type: "DINE_IN", tableId: tablePOS.id } });
+const cancelOrderId = r.data.order.id;
+ok(r.status === 201, "buka order untuk uji pembatalan");
+
+// Kasir tak boleh membatalkan (tanpa izin)
+r = await cashier(`/api/orders/${cancelOrderId}`, { method: "PATCH", body: { action: "cancel" } });
+ok(r.status === 403, "kasir tidak boleh batalkan order");
+
+// Manager minta batal → menunggu persetujuan, order tetap OPEN
+r = await manager(`/api/orders/${cancelOrderId}`, { method: "PATCH", body: { action: "cancel", reason: "uji smoke" } });
+ok(r.status === 200 && r.data.pending === true, "manager minta batal → menunggu persetujuan");
+r = await owner(`/api/orders/${cancelOrderId}`);
+ok(r.data.order.status === "OPEN", "order tetap OPEN sebelum disetujui");
+
+// Kasir tak bisa meninjau persetujuan
+r = await cashier("/api/approvals");
+ok(r.status === 403, "kasir tak bisa tinjau persetujuan");
+
+// Owner menyetujui → order CANCELED
+r = await owner("/api/approvals?status=PENDING");
+const cancelReq = r.data.requests.find((x) => x.type === "ORDER_CANCEL" && x.targetId === cancelOrderId);
+ok(cancelReq, "owner melihat permintaan pembatalan");
+r = await owner(`/api/approvals/${cancelReq.id}`, { method: "POST", body: { decision: "approve" } });
+ok(r.status === 200 && r.data.status === "APPROVED", "owner setujui pembatalan");
+r = await owner(`/api/orders/${cancelOrderId}`);
+ok(r.data.order.status === "CANCELED", "order CANCELED setelah disetujui");
+
+// Manager edit menu → menunggu persetujuan, harga belum berubah
+r = await manager(`/api/menu/${menuItemId}`, { method: "PATCH", body: { price: 88888 } });
+ok(r.status === 200 && r.data.pending === true, "manager edit menu → menunggu persetujuan");
+r = await anon("/api/menu");
+let price = r.data.categories.flatMap((c) => c.items).find((i) => i.id === menuItemId).price;
+ok(price !== 88888, "harga menu belum berubah sebelum disetujui");
+
+// Owner menyetujui → harga berubah
+r = await owner("/api/approvals?status=PENDING");
+const menuReq = r.data.requests.find((x) => x.type === "MENU_UPDATE" && x.targetId === menuItemId);
+r = await owner(`/api/approvals/${menuReq.id}`, { method: "POST", body: { decision: "approve" } });
+ok(r.status === 200 && r.data.status === "APPROVED", "owner setujui perubahan menu");
+r = await anon("/api/menu");
+price = r.data.categories.flatMap((c) => c.items).find((i) => i.id === menuItemId).price;
+ok(price === 88888, "harga menu berubah setelah disetujui");
+
+// Owner mengubah menu langsung tanpa antrean persetujuan
+r = await owner(`/api/menu/${menuItemId}`, { method: "PATCH", body: { price: 25000 } });
+ok(r.status === 200 && r.data.item?.price === 25000, "owner edit menu langsung (tanpa persetujuan)");
+
 console.log(`\nSemua ${passed} pemeriksaan lulus ✅`);
