@@ -7,6 +7,7 @@ import { Badge, Button, Card, Input, Label, Money, PageTitle, Spinner } from "@/
 import MenuImage from "@/components/MenuImage";
 import Sheet from "@/components/Sheet";
 import { formatIDR } from "@/lib/constants";
+import { usePerms } from "@/lib/use-permissions";
 
 type Photo = { id: string; url: string; isPrimary: boolean };
 type MenuItem = {
@@ -17,6 +18,10 @@ type Category = { id: string; name: string; items: MenuItem[] };
 
 /** Kelola Menu — layout ala POS: grid menu di kiri, panel detail + aksi di kanan. */
 export default function MenuAdminPage() {
+  const { can } = usePerms();
+  const canEdit = can("menu.edit");
+  const canCost = can("menu.cost");
+  const canAvail = can("menu.availability");
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [activeCat, setActiveCat] = useState("all");
   const [search, setSearch] = useState("");
@@ -61,9 +66,11 @@ export default function MenuAdminPage() {
       <PageTitle
         title="Kelola Menu"
         action={
-          <Button variant="gold" onClick={() => setEditItem("new")}>
-            <Plus size={16} /> Item Baru
-          </Button>
+          canEdit ? (
+            <Button variant="gold" onClick={() => setEditItem("new")}>
+              <Plus size={16} /> Item Baru
+            </Button>
+          ) : undefined
         }
       />
 
@@ -108,9 +115,11 @@ export default function MenuAdminPage() {
               <p className="col-span-full py-8 text-center text-sm text-ink/40">Tidak ada menu.</p>
             )}
           </div>
-          <div className="mt-3 flex gap-2 border-t border-sunset-50 pt-3">
-            <CategoryAdder count={categories.length} onAdded={load} />
-          </div>
+          {canEdit && (
+            <div className="mt-3 flex gap-2 border-t border-sunset-50 pt-3">
+              <CategoryAdder count={categories.length} onAdded={load} />
+            </div>
+          )}
         </Card>
 
         {/* Panel detail — tabbed: Detail (edit) + Costing */}
@@ -123,6 +132,9 @@ export default function MenuAdminPage() {
               item={selected}
               categories={categories}
               catName={catName}
+              canEdit={canEdit}
+              canCost={canCost}
+              canAvail={canAvail}
               onSaved={load}
               onPhotos={() => setPhotoItem(selected)}
               onToggle={() => toggle(selected)}
@@ -149,11 +161,14 @@ export default function MenuAdminPage() {
 
 /** Panel detail menu dengan 2 tab: Detail (edit) & Costing (HPP/margin). */
 function DetailPanel({
-  item, categories, catName, onSaved, onPhotos, onToggle, onRemove,
+  item, categories, catName, canEdit, canCost, canAvail, onSaved, onPhotos, onToggle, onRemove,
 }: {
   item: MenuItem;
   categories: Category[];
   catName: (id?: string) => string;
+  canEdit: boolean;
+  canCost: boolean;
+  canAvail: boolean;
   onSaved: () => void;
   onPhotos: () => void;
   onToggle: () => void;
@@ -201,9 +216,9 @@ function DetailPanel({
         </div>
       </div>
 
-      {/* Tab header dengan border-bottom penanda aktif */}
+      {/* Tab header dengan border-bottom penanda aktif (Costing hanya bila berizin) */}
       <div className="mb-3 flex border-b border-sunset-100">
-        {([["detail", "Detail"], ["costing", "Costing"]] as const).map(([v, label]) => (
+        {(canCost ? ([["detail", "Detail"], ["costing", "Costing"]] as const) : ([["detail", "Detail"]] as const)).map(([v, label]) => (
           <button
             key={v}
             onClick={() => setTab(v)}
@@ -216,18 +231,19 @@ function DetailPanel({
         ))}
       </div>
 
-      {tab === "detail" ? (
+      {tab === "detail" || !canCost ? (
         <div className="space-y-3">
           <div>
             <Label>Nama</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
+            <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canEdit} />
           </div>
           <div>
             <Label>Kategori</Label>
             <select
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full rounded-xl border border-sunset-200 bg-white px-3.5 py-2.5 text-sm"
+              disabled={!canEdit}
+              className="w-full rounded-xl border border-sunset-200 bg-white px-3.5 py-2.5 text-sm disabled:opacity-60"
             >
               {categories.map((cat) => (
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -237,33 +253,37 @@ function DetailPanel({
           </div>
           <div>
             <Label>Estimasi pembuatan (menit)</Label>
-            <Input type="number" min={1} value={prepMinutes} onChange={(e) => setPrep(e.target.value)} />
+            <Input type="number" min={1} value={prepMinutes} onChange={(e) => setPrep(e.target.value)} disabled={!canEdit} />
           </div>
           <div>
             <Label>Deskripsi</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} disabled={!canEdit} />
           </div>
-          <Button
-            full
-            disabled={busy}
-            onClick={() => save({ name, categoryId, description, prepMinutes: prepMinutes ? Number(prepMinutes) : null })}
-          >
-            {busy ? "Menyimpan…" : saved || "Simpan Detail"}
-          </Button>
+          {canEdit && (
+            <Button
+              full
+              disabled={busy}
+              onClick={() => save({ name, categoryId, description, prepMinutes: prepMinutes ? Number(prepMinutes) : null })}
+            >
+              {busy ? "Menyimpan…" : saved || "Simpan Detail"}
+            </Button>
+          )}
 
           <div className="grid gap-2 border-t border-sunset-50 pt-3">
-            <Button variant="outline" onClick={onPhotos}><Camera size={16} /> Kelola Foto</Button>
-            <Button variant={item.available ? "outline" : "teal"} onClick={onToggle}>
-              {item.available ? "Jadikan Habis" : "Jadikan Tersedia"}
-            </Button>
-            <Button variant="danger" onClick={onRemove}><Trash size={16} /> Hapus</Button>
+            {canEdit && <Button variant="outline" onClick={onPhotos}><Camera size={16} /> Kelola Foto</Button>}
+            {canAvail && (
+              <Button variant={item.available ? "outline" : "teal"} onClick={onToggle}>
+                {item.available ? "Jadikan Habis" : "Jadikan Tersedia"}
+              </Button>
+            )}
+            {canEdit && <Button variant="danger" onClick={onRemove}><Trash size={16} /> Hapus</Button>}
           </div>
         </div>
       ) : (
         <div className="space-y-3">
           <div>
             <Label>Harga jual (Rp)</Label>
-            <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
+            <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} disabled={!canEdit} />
           </div>
           <div>
             <Label>HPP / modal (Rp)</Label>
@@ -279,7 +299,7 @@ function DetailPanel({
               </span>
             </div>
           </div>
-          <Button full disabled={busy} onClick={() => save({ price: Number(price), costPrice: Number(costPrice) })}>
+          <Button full disabled={busy} onClick={() => save(canEdit ? { price: Number(price), costPrice: Number(costPrice) } : { costPrice: Number(costPrice) })}>
             {busy ? "Menyimpan…" : saved || "Simpan Costing"}
           </Button>
           <p className="text-[11px] text-ink/40">

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireRole, isSession } from "@/lib/auth";
-import { ADMIN_ROLES } from "@/lib/constants";
+import { isSession } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { saveUpload, storageMode } from "@/lib/storage";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
  * Foto pertama otomatis menjadi foto utama.
  */
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const guard = await requireRole(ADMIN_ROLES);
+  const guard = await requirePermission("menu.edit");
   if (!isSession(guard)) return guard;
   const { id } = await ctx.params;
 

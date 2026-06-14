@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireRole, isSession } from "@/lib/auth";
-import { ADMIN_ROLES } from "@/lib/constants";
+import { isSession } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 
 export async function GET() {
   const categories = await db.menuCategory.findMany({
@@ -17,7 +17,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await requireRole(ADMIN_ROLES);
+  const guard = await requirePermission("menu.edit");
   if (!isSession(guard)) return guard;
 
   const body = await req.json();

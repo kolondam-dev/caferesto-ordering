@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole, isSession } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 import { ORDER_STATUS, STAFF_ROLES, TABLE_STATUS } from "@/lib/constants";
 import { getOrderDue } from "@/lib/payments/settle";
 import { resolveOrderAccess } from "@/lib/order-access";
@@ -51,6 +52,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   const body = await req.json();
 
   if (body.action === "cancel") {
+    // Aturan peran: hanya yang punya izin pos.cancel_order (kasir tidak).
+    const permGuard = await requirePermission("pos.cancel_order");
+    if (!isSession(permGuard)) return permGuard;
     const order = await db.order.findUnique({ where: { id } });
     if (!order || order.status !== ORDER_STATUS.OPEN)
       return NextResponse.json({ error: "Order tidak bisa dibatalkan" }, { status: 400 });
