@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isSession } from "@/lib/auth";
 import { requirePermission, can } from "@/lib/permissions";
-import { needsApproval, createApproval, applyMenuUpdate, deleteMenuItem, pickMenuFields } from "@/lib/approvals";
+import { needsApproval, createApproval, applyMenuUpdate, deleteMenuItem, pickMenuFields, MENU_DETAIL_FIELDS } from "@/lib/approvals";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -10,8 +10,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const touchesCost = body.costPrice !== undefined;
   // Field detail (selain costPrice) butuh menu.edit; costPrice butuh menu.cost.
-  const detailFields = ["name", "description", "price", "available", "categoryId", "prepMinutes"];
-  const touchesDetail = detailFields.some((f) => body[f] !== undefined);
+  const touchesDetail = MENU_DETAIL_FIELDS.some((f) => body[f] !== undefined);
 
   // Minimal harus punya salah satu izin yang relevan.
   const guard = await requirePermission(touchesDetail ? "menu.edit" : "menu.cost");
