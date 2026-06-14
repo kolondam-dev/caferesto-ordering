@@ -65,6 +65,12 @@ const BADGE_TONES: Record<string, string> = {
   AWAITING_PAYMENT: "bg-gold-100 text-gold-800",
   AWAITING_VALIDATION: "bg-teal-100 text-teal-800",
   IN_KITCHEN: "bg-sunset-100 text-sunset-800",
+  // peran (RBAC)
+  OWNER: "bg-violet-100 text-violet-800",
+  MANAGER: "bg-teal-100 text-teal-800",
+  CASHIER: "bg-gold-100 text-gold-800",
+  KITCHEN: "bg-sunset-100 text-sunset-800",
+  CUSTOMER: "bg-gray-100 text-gray-700",
 };
 
 export function Badge({ status, label }: { status: string; label?: string }) {

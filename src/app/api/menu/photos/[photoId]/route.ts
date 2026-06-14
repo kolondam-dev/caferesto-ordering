@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireRole, isSession } from "@/lib/auth";
-import { ADMIN_ROLES } from "@/lib/constants";
+import { isSession } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
 
 type Ctx = { params: Promise<{ photoId: string }> };
 
 /** Jadikan foto utama (foto utama lama otomatis diturunkan). */
 export async function PATCH(_req: NextRequest, ctx: Ctx) {
-  const guard = await requireRole(ADMIN_ROLES);
+  const guard = await requirePermission("menu.edit");
   if (!isSession(guard)) return guard;
   const { photoId } = await ctx.params;
 
@@ -22,7 +22,7 @@ export async function PATCH(_req: NextRequest, ctx: Ctx) {
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
-  const guard = await requireRole(ADMIN_ROLES);
+  const guard = await requirePermission("menu.edit");
   if (!isSession(guard)) return guard;
   const { photoId } = await ctx.params;
 

@@ -9,6 +9,7 @@ import { api } from "@/lib/client";
 import { Badge, Button, Card, Input, Label, Money, PageTitle, Spinner } from "@/components/ui";
 import MenuImage from "@/components/MenuImage";
 import Sheet from "@/components/Sheet";
+import { usePerms } from "@/lib/use-permissions";
 
 const TableIcon = PicnicTable ?? Rectangle; // fallback bila ikon meja tak tersedia
 
@@ -202,6 +203,8 @@ type OrderData = {
  * dengan chips kategori + pencarian) dan kolom kalkulasi order (30%).
  */
 export default function POSPage() {
+  const { can } = usePerms();
+  const canCancel = can("pos.cancel_order");
   const [tables, setTables] = useState<TableT[] | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [current, setCurrent] = useState<OrderData | null>(null);
@@ -777,9 +780,11 @@ export default function POSPage() {
                   <Button variant="teal" full onClick={() => pay("gateway")} disabled={busy || current.bill.due <= 0}>
                     QRIS / Gateway
                   </Button>
-                  <Button variant="outline" full onClick={cancelOrder} disabled={busy}>
-                    Batalkan Order
-                  </Button>
+                  {canCancel && (
+                    <Button variant="outline" full onClick={cancelOrder} disabled={busy}>
+                      Batalkan Order
+                    </Button>
+                  )}
                 </div>
               )}
               {/* Lunas tapi meja belum dibersihkan: verifikasi penyajian lalu bebaskan meja */}

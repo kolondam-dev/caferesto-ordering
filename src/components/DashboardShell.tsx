@@ -4,41 +4,52 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   SquaresFour, Storefront, CookingPot, CalendarCheck, Table, ForkKnife, GearSix,
-  ChatCircleDots, Package, Truck, Invoice, Calculator, ClockUser, Money as MoneyIcon, SignOut, Crown, ClockCounterClockwise,
+  ChatCircleDots, Package, Truck, Invoice, Calculator, ClockUser, Money as MoneyIcon, SignOut, Crown, ClockCounterClockwise, UsersThree,
 } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import ConnectionBanner from "@/components/ConnectionBanner";
+import { PermProvider } from "@/lib/use-permissions";
 
-type Item = { href: string; label: string; icon: React.ElementType; pro?: boolean; roles?: string[] };
+type Item = { href: string; label: string; icon: React.ElementType; pro?: boolean; perm?: string };
 
 const CORE: Item[] = [
-  { href: "/dashboard", label: "Ringkasan", icon: SquaresFour },
-  { href: "/dashboard/pos", label: "POS Kasir", icon: Storefront, roles: ["OWNER", "MANAGER", "CASHIER"] },
-  { href: "/dashboard/history", label: "Riwayat Order", icon: ClockCounterClockwise, roles: ["OWNER", "MANAGER", "CASHIER"] },
-  { href: "/dashboard/kitchen", label: "Kitchen", icon: CookingPot },
-  { href: "/dashboard/bookings", label: "Booking", icon: CalendarCheck },
-  { href: "/dashboard/tables", label: "Meja", icon: Table },
-  { href: "/dashboard/menu", label: "Menu", icon: ForkKnife, roles: ["OWNER", "MANAGER"] },
-  { href: "/dashboard/ai", label: "AI Agent", icon: ChatCircleDots, roles: ["OWNER", "MANAGER"] },
-  { href: "/dashboard/settings", label: "Pengaturan", icon: GearSix, roles: ["OWNER", "MANAGER"] },
+  { href: "/dashboard", label: "Ringkasan", icon: SquaresFour, perm: "dashboard.view" },
+  { href: "/dashboard/pos", label: "POS Kasir", icon: Storefront, perm: "pos.view" },
+  { href: "/dashboard/history", label: "Riwayat Order", icon: ClockCounterClockwise, perm: "history.view" },
+  { href: "/dashboard/kitchen", label: "Kitchen", icon: CookingPot, perm: "kitchen.view" },
+  { href: "/dashboard/bookings", label: "Booking", icon: CalendarCheck, perm: "bookings.view" },
+  { href: "/dashboard/tables", label: "Meja", icon: Table, perm: "tables.view" },
+  { href: "/dashboard/menu", label: "Menu", icon: ForkKnife, perm: "menu.view" },
+  { href: "/dashboard/users", label: "Pengguna & Peran", icon: UsersThree, perm: "users.manage" },
+  { href: "/dashboard/ai", label: "AI Agent", icon: ChatCircleDots, perm: "ai.view" },
+  { href: "/dashboard/settings", label: "Pengaturan", icon: GearSix, perm: "settings.view" },
 ];
 
 const PRO: Item[] = [
-  { href: "/dashboard/pro/inventory", label: "Inventory", icon: Package, pro: true },
-  { href: "/dashboard/pro/suppliers", label: "Supplier", icon: Truck, pro: true },
-  { href: "/dashboard/pro/payables", label: "Payables", icon: Invoice, pro: true },
-  { href: "/dashboard/pro/accounting", label: "Akuntansi", icon: Calculator, pro: true },
-  { href: "/dashboard/pro/attendance", label: "Absensi", icon: ClockUser, pro: true },
-  { href: "/dashboard/pro/payroll", label: "Payroll", icon: MoneyIcon, pro: true },
+  { href: "/dashboard/pro/inventory", label: "Inventory", icon: Package, pro: true, perm: "pro.view" },
+  { href: "/dashboard/pro/suppliers", label: "Supplier", icon: Truck, pro: true, perm: "pro.view" },
+  { href: "/dashboard/pro/payables", label: "Payables", icon: Invoice, pro: true, perm: "pro.view" },
+  { href: "/dashboard/pro/accounting", label: "Akuntansi", icon: Calculator, pro: true, perm: "pro.view" },
+  { href: "/dashboard/pro/attendance", label: "Absensi", icon: ClockUser, pro: true, perm: "pro.view" },
+  { href: "/dashboard/pro/payroll", label: "Payroll", icon: MoneyIcon, pro: true, perm: "pro.view" },
 ];
 
-// Item utama untuk bottom-nav mobile
+// Kandidat item utama untuk bottom-nav mobile (difilter izin saat render).
 const MOBILE = [CORE[0], CORE[1], CORE[2], CORE[3], CORE[6]];
 
-export default function DashboardShell({ children, role }: { children: React.ReactNode; role: string }) {
+export default function DashboardShell({
+  children,
+  role,
+  permissions,
+}: {
+  children: React.ReactNode;
+  role: string;
+  permissions: string[];
+}) {
   const pathname = usePathname();
   const router = useRouter();
-  const visible = (items: Item[]) => items.filter((i) => !i.roles || i.roles.includes(role));
+  const allow = (perm?: string) => !perm || role === "OWNER" || permissions.includes(perm);
+  const visible = (items: Item[]) => items.filter((i) => allow(i.perm));
 
   async function logout() {
     await api("/api/auth/logout", { method: "POST" });
@@ -101,7 +112,9 @@ export default function DashboardShell({ children, role }: { children: React.Rea
             <SignOut size={20} />
           </button>
         </header>
-        <main className="p-4 md:p-6">{children}</main>
+        <main className="p-4 md:p-6">
+          <PermProvider role={role} permissions={permissions}>{children}</PermProvider>
+        </main>
       </div>
 
       {/* Bottom nav — mobile */}
