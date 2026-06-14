@@ -39,6 +39,7 @@ const MONEY_FIELDS = ["price", "costPrice"];
 
 export default function ApprovalsPage() {
   const { can } = usePerms();
+  const canReview = can("approvals.review");
   const [tab, setTab] = useState<"PENDING" | "ALL">("PENDING");
   const [data, setData] = useState<{ requests: Req[]; pendingCount: number } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -48,11 +49,13 @@ export default function ApprovalsPage() {
     api<{ requests: Req[]; pendingCount: number }>(`/api/approvals?status=${tab}`).then(setData);
   }, [tab]);
 
+  // `canReview` adalah boolean yang stabil antar-render (bukan fungsi `can`
+  // yang berganti identitas), sehingga efek tidak terus memuat ulang.
   useEffect(() => {
-    if (can("approvals.review")) load();
-  }, [load, can]);
+    if (canReview) load();
+  }, [canReview, load]);
 
-  if (!can("approvals.review"))
+  if (!canReview)
     return (
       <div className="mx-auto max-w-md">
         <Card className="p-8 text-center">
