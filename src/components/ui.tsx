@@ -130,3 +130,22 @@ export function Spinner() {
     </div>
   );
 }
+
+/** Tab bergaya garis-bawah (dipakai halaman backoffice dengan tab + ikon). */
+export function TabButton({
+  active, onClick, icon, children,
+}: {
+  active: boolean; onClick: () => void; icon?: React.ReactNode; children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-bold transition-colors ${
+        active ? "border-teal-600 text-teal-700" : "border-transparent text-ink/45 hover:text-ink/70"
+      }`}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}

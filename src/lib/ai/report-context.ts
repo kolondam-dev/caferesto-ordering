@@ -1,26 +1,19 @@
 import { db } from "../db";
 import { ORDER_STATUS, BOOKING_STATUS, formatIDR } from "../constants";
-
-function startOfDay(d = new Date()) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
+import { startOfDay, dayKey } from "../date";
 
 /**
  * Kumpulkan snapshot data operasional sebagai konteks untuk AI agent.
- * Dipakai baik untuk prompt Gemini maupun jawaban mode mock.
+ * Dipakai baik untuk prompt Gemini maupun jawaban mode mock, serta sebagai
+ * basis metrik dashboard. Order PAID 7 hari di-fetch sekali; data hari ini
+ * diturunkan darinya (tanpa query terpisah).
  */
 export async function buildReportContext() {
   const today = startOfDay();
   const weekAgo = new Date(today.getTime() - 6 * 86400_000);
 
-  const [paidToday, paidWeek, openOrders, bookingsToday, lowStock, payablesDue, topRows] =
+  const [paidWeek, openOrders, bookingsToday, lowStock, payablesDue, topRows] =
     await Promise.all([
-      db.order.findMany({
-        where: { status: ORDER_STATUS.PAID, closedAt: { gte: today } },
-        include: { items: true },
-      }),
       db.order.findMany({
         where: { status: ORDER_STATUS.PAID, closedAt: { gte: weekAgo } },
         include: { items: true },
@@ -44,16 +37,46 @@ export async function buildReportContext() {
       }),
     ]);
 
+  // Hari ini = subset dari paidWeek (hindari query terpisah).
+  const paidToday = paidWeek.filter((o) => o.closedAt && o.closedAt >= today);
+
+  const revenueOf = (o: { items: { price: number; qty: number; status: string }[] }) =>
+    o.items.filter((i) => i.status !== "CANCELED").reduce((t, i) => t + i.price * i.qty, 0);
+  const itemsOf = (o: { items: { qty: number; status: string }[] }) =>
+    o.items.filter((i) => i.status !== "CANCELED").reduce((t, i) => t + i.qty, 0);
   const sum = (orders: { items: { price: number; qty: number; status: string }[] }[]) =>
-    orders.reduce(
-      (s, o) => s + o.items.filter((i) => i.status !== "CANCELED").reduce((t, i) => t + i.price * i.qty, 0),
-      0
-    );
+    orders.reduce((s, o) => s + revenueOf(o), 0);
+
+  const dineInToday = paidToday.filter((o) => o.type === "DINE_IN");
+  const takeawayToday = paidToday.filter((o) => o.type === "TAKEAWAY");
+  const revToday = sum(paidToday);
+
+  // Tren omzet 7 hari (bucket per tanggal).
+  const dailyRevenue = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today.getTime() - (6 - i) * 86400_000);
+    return { date: dayKey(d), revenue: 0, orders: 0 };
+  });
+  const byDay = new Map(dailyRevenue.map((d) => [d.date, d]));
+  for (const o of paidWeek) {
+    if (!o.closedAt) continue;
+    const bucket = byDay.get(dayKey(o.closedAt));
+    if (bucket) {
+      bucket.revenue += revenueOf(o);
+      bucket.orders += 1;
+    }
+  }
 
   return {
     generatedAt: new Date().toISOString(),
-    salesToday: { revenue: sum(paidToday), orders: paidToday.length },
+    salesToday: { revenue: revToday, orders: paidToday.length },
+    salesTodayDetail: {
+      avgOrder: paidToday.length ? Math.round(revToday / paidToday.length) : 0,
+      itemsSold: paidToday.reduce((s, o) => s + itemsOf(o), 0),
+      dineIn: { revenue: sum(dineInToday), orders: dineInToday.length },
+      takeaway: { revenue: sum(takeawayToday), orders: takeawayToday.length },
+    },
     salesWeek: { revenue: sum(paidWeek), orders: paidWeek.length },
+    dailyRevenue,
     openOrders,
     bookingsToday: bookingsToday.map((b) => ({
       code: b.code,

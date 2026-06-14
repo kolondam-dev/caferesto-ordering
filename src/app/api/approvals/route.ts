@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isSession } from "@/lib/auth";
 import { requirePermission } from "@/lib/permissions";
+import { safeJson } from "@/lib/approvals";
 
 /** Daftar permintaan persetujuan. Default PENDING; ?status=ALL untuk semua. */
 export async function GET(req: NextRequest) {
@@ -36,12 +37,4 @@ export async function GET(req: NextRequest) {
 
   const pendingCount = await db.approvalRequest.count({ where: { status: "PENDING" } });
   return NextResponse.json({ requests, pendingCount });
-}
-
-function safeJson(s: string) {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return {};
-  }
 }

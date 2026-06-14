@@ -65,7 +65,9 @@ export async function deleteOrder(orderId: string): Promise<{ ok: boolean; error
   return { ok: true };
 }
 
-const MENU_FIELDS = ["name", "description", "price", "available", "categoryId", "prepMinutes", "costPrice"] as const;
+export const MENU_FIELDS = ["name", "description", "price", "available", "categoryId", "prepMinutes", "costPrice"] as const;
+// Field detail (butuh menu.edit); costPrice dipisah karena butuh menu.cost.
+export const MENU_DETAIL_FIELDS = MENU_FIELDS.filter((f) => f !== "costPrice");
 
 /** Terapkan perubahan field menu (mapping sama dengan PATCH menu). */
 export async function applyMenuUpdate(id: string, body: Record<string, unknown>) {
@@ -124,7 +126,7 @@ export async function applyApproval(req: {
   }
 }
 
-function safeJson(s: string): Record<string, unknown> {
+export function safeJson(s: string): Record<string, unknown> {
   try {
     const v = JSON.parse(s);
     return v && typeof v === "object" ? v : {};
