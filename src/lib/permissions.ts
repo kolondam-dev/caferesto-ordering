@@ -26,6 +26,7 @@ export const PERMISSIONS: Permission[] = [
   { key: "pos.cancel_order", module: "POS Kasir", label: "Batalkan order" },
 
   { key: "history.view", module: "Riwayat Order", label: "Lihat riwayat order" },
+  { key: "order.delete", module: "Riwayat Order", label: "Hapus / void order (perlu persetujuan)" },
   { key: "kitchen.view", module: "Kitchen", label: "Lihat & proses antrian dapur" },
   { key: "bookings.view", module: "Booking", label: "Kelola booking meja" },
 
@@ -43,6 +44,8 @@ export const PERMISSIONS: Permission[] = [
 
   { key: "users.manage", module: "Pengguna & Peran", label: "Kelola pengguna & tetapkan peran" },
   { key: "roles.manage", module: "Pengguna & Peran", label: "Ubah hak akses tiap peran" },
+
+  { key: "approvals.review", module: "Persetujuan", label: "Setujui / tolak permintaan" },
 ];
 
 export const PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);
@@ -52,7 +55,7 @@ export const DEFAULT_GRANTS: Record<Exclude<Role, "OWNER" | "CUSTOMER">, string[
   MANAGER: [
     "dashboard.view",
     "pos.view", "pos.cancel_order",
-    "history.view", "kitchen.view", "bookings.view",
+    "history.view", "order.delete", "kitchen.view", "bookings.view",
     "tables.view", "tables.manage",
     "menu.view", "menu.availability", "menu.edit", "menu.cost",
     "ai.view", "settings.view", "pro.view",

@@ -65,6 +65,9 @@ const BADGE_TONES: Record<string, string> = {
   AWAITING_PAYMENT: "bg-gold-100 text-gold-800",
   AWAITING_VALIDATION: "bg-teal-100 text-teal-800",
   IN_KITCHEN: "bg-sunset-100 text-sunset-800",
+  // persetujuan
+  APPROVED: "bg-emerald-100 text-emerald-800",
+  REJECTED: "bg-red-100 text-red-700",
   // peran (RBAC)
   OWNER: "bg-violet-100 text-violet-800",
   MANAGER: "bg-teal-100 text-teal-800",

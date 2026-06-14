@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MagnifyingGlass, Receipt as ReceiptIcon } from "@phosphor-icons/react";
+import { MagnifyingGlass, Receipt as ReceiptIcon, Trash } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
 import { Badge, Button, Card, Money, PageTitle, Spinner } from "@/components/ui";
 import { formatIDR } from "@/lib/constants";
+import { usePerms } from "@/lib/use-permissions";
 
 type Item = { id: string; nameSnapshot: string; price: number; qty: number; status: string };
 type Payment = { id: string; payerName?: string | null; amount: number; provider: string; status: string; method: string };
@@ -28,6 +29,7 @@ function todayStr(offsetDays = 0) {
 }
 
 export default function HistoryPage() {
+  const { can } = usePerms();
   const [tab, setTab] = useState<"DINE_IN" | "TAKEAWAY">("DINE_IN");
   const [from, setFrom] = useState(todayStr(-6));
   const [to, setTo] = useState(todayStr());
@@ -49,6 +51,18 @@ export default function HistoryPage() {
   }, [load]);
 
   const selected = useMemo(() => data?.orders.find((o) => o.id === selId) ?? null, [data, selId]);
+
+  async function deleteOrder(id: string) {
+    const reason = prompt("Alasan penghapusan order (opsional):") ?? "";
+    const res = await api<{ pending?: boolean; deleted?: boolean; message?: string }>(
+      `/api/orders/${id}?reason=${encodeURIComponent(reason)}`,
+      { method: "DELETE" }
+    ).catch((e) => { alert((e as Error).message); return null; });
+    if (!res) return;
+    if (res.pending) { alert(res.message ?? "Permintaan penghapusan menunggu persetujuan owner."); return; }
+    setSelId(null);
+    load();
+  }
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -199,6 +213,11 @@ export default function HistoryPage() {
                   <Button variant="outline" full className="mt-3" onClick={() => window.open(`/receipt/${selected.id}`, "_blank")}>
                     <ReceiptIcon size={16} /> Lihat Struk
                   </Button>
+                  {can("order.delete") && (
+                    <Button variant="danger" full className="mt-2" onClick={() => deleteOrder(selected.id)}>
+                      <Trash size={16} /> Hapus Order
+                    </Button>
+                  )}
                 </>
               )}
             </Card>

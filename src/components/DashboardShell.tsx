@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   SquaresFour, Storefront, CookingPot, CalendarCheck, Table, ForkKnife, GearSix,
-  ChatCircleDots, Package, Truck, Invoice, Calculator, ClockUser, Money as MoneyIcon, SignOut, Crown, ClockCounterClockwise, UsersThree,
+  ChatCircleDots, Package, Truck, Invoice, Calculator, ClockUser, Money as MoneyIcon, SignOut, Crown, ClockCounterClockwise, UsersThree, SealCheck,
 } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import ConnectionBanner from "@/components/ConnectionBanner";
 import { PermProvider } from "@/lib/use-permissions";
 
-type Item = { href: string; label: string; icon: React.ElementType; pro?: boolean; perm?: string };
+type Item = { href: string; label: string; icon: React.ElementType; pro?: boolean; perm?: string; badge?: number };
 
 const CORE: Item[] = [
   { href: "/dashboard", label: "Ringkasan", icon: SquaresFour, perm: "dashboard.view" },
@@ -20,6 +21,7 @@ const CORE: Item[] = [
   { href: "/dashboard/bookings", label: "Booking", icon: CalendarCheck, perm: "bookings.view" },
   { href: "/dashboard/tables", label: "Meja", icon: Table, perm: "tables.view" },
   { href: "/dashboard/menu", label: "Menu", icon: ForkKnife, perm: "menu.view" },
+  { href: "/dashboard/approvals", label: "Persetujuan", icon: SealCheck, perm: "approvals.review" },
   { href: "/dashboard/users", label: "Pengguna & Peran", icon: UsersThree, perm: "users.manage" },
   { href: "/dashboard/ai", label: "AI Agent", icon: ChatCircleDots, perm: "ai.view" },
   { href: "/dashboard/settings", label: "Pengaturan", icon: GearSix, perm: "settings.view" },
@@ -51,6 +53,21 @@ export default function DashboardShell({
   const allow = (perm?: string) => !perm || role === "OWNER" || permissions.includes(perm);
   const visible = (items: Item[]) => items.filter((i) => allow(i.perm));
 
+  // Lencana jumlah permintaan menunggu (untuk reviewer/owner).
+  const [pendingApprovals, setPendingApprovals] = useState(0);
+  const canReview = allow("approvals.review");
+  useEffect(() => {
+    if (!canReview) return;
+    let alive = true;
+    const load = () =>
+      api<{ pendingCount: number }>("/api/approvals?status=PENDING")
+        .then((d) => alive && setPendingApprovals(d.pendingCount))
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 20000);
+    return () => { alive = false; clearInterval(t); };
+  }, [canReview]);
+
   async function logout() {
     await api("/api/auth/logout", { method: "POST" });
     router.push("/staff/login");
@@ -70,6 +87,11 @@ export default function DashboardShell({
         <span className="truncate">{item.label}</span>
         {item.pro && (
           <span className="ml-auto rounded-full bg-gold-100 px-1.5 py-0.5 text-[9px] font-bold text-gold-800">PRO</span>
+        )}
+        {item.perm === "approvals.review" && pendingApprovals > 0 && (
+          <span className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? "bg-white/25 text-white" : "bg-red-500 text-white"}`}>
+            {pendingApprovals}
+          </span>
         )}
       </Link>
     );

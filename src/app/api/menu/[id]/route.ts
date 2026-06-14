@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isSession } from "@/lib/auth";
 import { requirePermission, can } from "@/lib/permissions";
+import { needsApproval, createApproval, applyMenuUpdate, deleteMenuItem, pickMenuFields } from "@/lib/approvals";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -22,18 +23,19 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Tidak punya izin mengubah menu" }, { status: 403 });
 
   const { id } = await ctx.params;
-  const item = await db.menuItem.update({
-    where: { id },
-    data: {
-      ...(body.name !== undefined && { name: body.name }),
-      ...(body.description !== undefined && { description: body.description }),
-      ...(body.price !== undefined && { price: Number(body.price) }),
-      ...(body.available !== undefined && { available: Boolean(body.available) }),
-      ...(body.categoryId !== undefined && { categoryId: body.categoryId }),
-      ...(body.prepMinutes !== undefined && { prepMinutes: body.prepMinutes ? Number(body.prepMinutes) : null }),
-      ...(body.costPrice !== undefined && { costPrice: Math.max(0, Math.round(Number(body.costPrice) || 0)) }),
-    },
-  });
+
+  // Non-owner: perubahan menu menunggu persetujuan owner. Owner: langsung.
+  if (needsApproval(guard.role)) {
+    const item = await db.menuItem.findUnique({ where: { id }, select: { name: true } });
+    if (!item) return NextResponse.json({ error: "Menu tidak ditemukan" }, { status: 404 });
+    await createApproval({
+      type: "MENU_UPDATE", actor: guard, targetType: "MENU", targetId: id,
+      targetLabel: item.name, payload: pickMenuFields(body),
+    });
+    return NextResponse.json({ pending: true, message: "Perubahan menu menunggu persetujuan owner." });
+  }
+
+  const item = await applyMenuUpdate(id, body);
   return NextResponse.json({ item });
 }
 
@@ -41,11 +43,16 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
   const guard = await requirePermission("menu.edit");
   if (!isSession(guard)) return guard;
   const { id } = await ctx.params;
-  const used = await db.orderItem.count({ where: { menuItemId: id } });
-  if (used > 0) {
-    await db.menuItem.update({ where: { id }, data: { available: false } });
-    return NextResponse.json({ archived: true });
+
+  if (needsApproval(guard.role)) {
+    const item = await db.menuItem.findUnique({ where: { id }, select: { name: true } });
+    if (!item) return NextResponse.json({ error: "Menu tidak ditemukan" }, { status: 404 });
+    await createApproval({
+      type: "MENU_DELETE", actor: guard, targetType: "MENU", targetId: id, targetLabel: item.name,
+    });
+    return NextResponse.json({ pending: true, message: "Penghapusan menu menunggu persetujuan owner." });
   }
-  await db.menuItem.delete({ where: { id } });
-  return NextResponse.json({ deleted: true });
+
+  const res = await deleteMenuItem(id);
+  return NextResponse.json(res);
 }
