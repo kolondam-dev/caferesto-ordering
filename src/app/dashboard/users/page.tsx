@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowCounterClockwise, Check, ShieldCheck, UsersThree } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
-import { Badge, Button, Card, PageTitle, Spinner } from "@/components/ui";
+import { Badge, Button, Card, PageTitle, Spinner, TabButton } from "@/components/ui";
 import { usePerms } from "@/lib/use-permissions";
 
 type StaffUser = { id: string; name: string; email: string | null; role: string; createdAt: string };
@@ -36,13 +36,13 @@ export default function UsersPage() {
       <PageTitle title="Pengguna & Peran" subtitle="Kelola staf dan hak akses tiap peran" />
 
       <div className="mb-4 flex border-b border-sunset-100">
-        <TabBtn active={tab === "users"} onClick={() => setTab("users")} icon={<UsersThree size={16} />}>
+        <TabButton active={tab === "users"} onClick={() => setTab("users")} icon={<UsersThree size={16} />}>
           Pengguna
-        </TabBtn>
+        </TabButton>
         {canRoles && (
-          <TabBtn active={tab === "roles"} onClick={() => setTab("roles")} icon={<ShieldCheck size={16} />}>
+          <TabButton active={tab === "roles"} onClick={() => setTab("roles")} icon={<ShieldCheck size={16} />}>
             Peran & Akses
-          </TabBtn>
+          </TabButton>
         )}
       </div>
 
@@ -234,16 +234,3 @@ function RoleCard({
   );
 }
 
-function TabBtn({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-bold transition-colors ${
-        active ? "border-teal-600 text-teal-700" : "border-transparent text-ink/45 hover:text-ink/70"
-      }`}
-    >
-      {icon}
-      {children}
-    </button>
-  );
-}

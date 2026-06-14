@@ -124,7 +124,7 @@ export async function applyApproval(req: {
   }
 }
 
-function safeJson(s: string): Record<string, unknown> {
+export function safeJson(s: string): Record<string, unknown> {
   try {
     const v = JSON.parse(s);
     return v && typeof v === "object" ? v : {};

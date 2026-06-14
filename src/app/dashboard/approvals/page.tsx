@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle, XCircle, ShieldCheck, ClockCounterClockwise } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
-import { Badge, Button, Card, PageTitle, Spinner } from "@/components/ui";
+import { Badge, Button, Card, PageTitle, Spinner, TabButton } from "@/components/ui";
 import { usePerms } from "@/lib/use-permissions";
 import { formatIDR } from "@/lib/constants";
 
@@ -83,12 +83,12 @@ export default function ApprovalsPage() {
       <PageTitle title="Persetujuan" subtitle="Tinjau permintaan aksi sensitif dari staf" />
 
       <div className="mb-4 flex border-b border-sunset-100">
-        <TabBtn active={tab === "PENDING"} onClick={() => setTab("PENDING")} icon={<ShieldCheck size={16} />}>
+        <TabButton active={tab === "PENDING"} onClick={() => setTab("PENDING")} icon={<ShieldCheck size={16} />}>
           Menunggu
-        </TabBtn>
-        <TabBtn active={tab === "ALL"} onClick={() => setTab("ALL")} icon={<ClockCounterClockwise size={16} />}>
+        </TabButton>
+        <TabButton active={tab === "ALL"} onClick={() => setTab("ALL")} icon={<ClockCounterClockwise size={16} />}>
           Riwayat
-        </TabBtn>
+        </TabButton>
       </div>
 
       {!data ? (
@@ -164,16 +164,3 @@ function fmtVal(key: string, v: unknown) {
   return String(v);
 }
 
-function TabBtn({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-bold transition-colors ${
-        active ? "border-teal-600 text-teal-700" : "border-transparent text-ink/45 hover:text-ink/70"
-      }`}
-    >
-      {icon}
-      {children}
-    </button>
-  );
-}
