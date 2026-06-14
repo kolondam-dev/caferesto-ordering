@@ -7,7 +7,7 @@ import { needsApproval, createApproval, applyMenuUpdate, deleteMenuItem, pickMen
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  const body = await req.json();
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const touchesCost = body.costPrice !== undefined;
   // Field detail (selain costPrice) butuh menu.edit; costPrice butuh menu.cost.
   const detailFields = ["name", "description", "price", "available", "categoryId", "prepMinutes"];
