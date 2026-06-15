@@ -48,8 +48,13 @@ export async function GET(req: NextRequest) {
 
   const status = req.nextUrl.searchParams.get("status") ?? undefined;
   const mineOnly = !STAFF_ROLES.includes(guard.role);
+  // Customer melihat order miliknya (customerId) ATAU order jalur QR tempat ia
+  // menjadi peserta tertaut (participant.userId) — termasuk member yang bayar sendiri.
+  const mineFilter = mineOnly
+    ? { OR: [{ customerId: guard.sub }, { participants: { some: { userId: guard.sub } } }] }
+    : {};
   const orders = await db.order.findMany({
-    where: { ...(status ? { status } : {}), ...(mineOnly ? { customerId: guard.sub } : {}) },
+    where: { ...(status ? { status } : {}), ...mineFilter },
     orderBy: { createdAt: "desc" },
     include: { table: true, items: true, booking: { select: { code: true } } },
     take: 100,

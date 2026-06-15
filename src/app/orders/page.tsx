@@ -8,7 +8,7 @@ import { Badge, Card, Empty, Money, Spinner } from "@/components/ui";
 import CustomerShell from "@/components/CustomerShell";
 
 type Order = {
-  id: string; code: string; status: string; type: string; createdAt: string;
+  id: string; code: string; status: string; type: string; source: string; createdAt: string;
   table?: { name: string } | null;
   items: { price: number; qty: number; status: string }[];
 };
@@ -37,7 +37,7 @@ export default function OrdersPage() {
           {orders.map((o) => {
             const subtotal = o.items.filter((i) => i.status !== "CANCELED").reduce((s, i) => s + i.price * i.qty, 0);
             return (
-              <Link key={o.id} href={`/order/${o.id}`}>
+              <Link key={o.id} href={o.source === "QR" ? `/o/${o.id}` : `/order/${o.id}`}>
                 <Card className="flex items-center justify-between p-4 hover:border-sunset-300">
                   <div>
                     <p className="font-bold">

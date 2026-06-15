@@ -2,15 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ForkKnife, CalendarCheck, Receipt, User } from "@phosphor-icons/react";
 import ConnectionBanner from "@/components/ConnectionBanner";
-
-const NAV = [
-  { href: "/", label: "Menu", icon: ForkKnife },
-  { href: "/book", label: "Booking", icon: CalendarCheck },
-  { href: "/orders", label: "Order", icon: Receipt },
-  { href: "/account", label: "Akun", icon: User },
-];
+import CustomerBottomNav, { CUSTOMER_NAV } from "@/components/CustomerBottomNav";
 
 /** Shell customer: bottom-nav di mobile, top-nav di layar besar. */
 export default function CustomerShell({ children }: { children: React.ReactNode }) {
@@ -25,7 +18,7 @@ export default function CustomerShell({ children }: { children: React.ReactNode 
             <span className="text-violet-700">Resto</span>
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
-            {NAV.map(({ href, label, icon: Icon }) => (
+            {CUSTOMER_NAV.map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
@@ -41,19 +34,7 @@ export default function CustomerShell({ children }: { children: React.ReactNode 
         </div>
       </header>
       <main className="px-4 py-4 md:px-6">{children}</main>
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-sunset-100 bg-white/95 backdrop-blur md:hidden">
-        <div className="grid grid-cols-4">
-          {NAV.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href;
-            return (
-              <Link key={href} href={href} className="flex flex-col items-center gap-0.5 py-2.5">
-                <Icon size={22} weight={active ? "fill" : "regular"} className={active ? "text-sunset-500" : "text-ink/40"} />
-                <span className={`text-[10px] font-semibold ${active ? "text-sunset-600" : "text-ink/40"}`}>{label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
+      <CustomerBottomNav />
     </div>
   );
 }

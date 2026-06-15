@@ -3,6 +3,7 @@ import { withIdempotency } from "@/lib/idempotency";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getGuestId, newGuestId, signGuestToken, GUEST_COOKIE } from "@/lib/guest";
+import { getSession } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { shortCode } from "@/lib/code";
 import { ORDER_STATUS } from "@/lib/constants";
@@ -32,6 +33,11 @@ async function handlePost(req: NextRequest) {
   if (!table) return NextResponse.json({ error: "Meja tidak ditemukan" }, { status: 404 });
 
   const gid = (await getGuestId()) ?? newGuestId();
+  // Bila customer sudah login, peserta langsung tertaut ke akunnya (story 3):
+  // riwayat otomatis tersimpan, dan saat bayar tak perlu isi HP lagi.
+  const session = await getSession();
+  const linkUserId = session?.role === "CUSTOMER" ? session.sub : null;
+  const linkPhone = session?.role === "CUSTOMER" ? session.phone ?? null : null;
 
   let order = await db.order.findFirst({
     where: { tableId: table.id, source: "QR", status: ORDER_STATUS.DRAFT },
@@ -68,7 +74,8 @@ async function handlePost(req: NextRequest) {
           taxPercent: settings.taxPercent,
           serviceFeeType: settings.serviceFeeEnabled ? settings.serviceFeeType : null,
           serviceFeeValue: settings.serviceFeeEnabled ? settings.serviceFeeValue : 0,
-          participants: { create: { name, phone: phone || null, isHost: true, token: gid } },
+          customerId: linkUserId,
+          participants: { create: { name, phone: phone || linkPhone, isHost: true, token: gid, userId: linkUserId } },
         },
         include: { participants: true },
       });
@@ -79,7 +86,7 @@ async function handlePost(req: NextRequest) {
         participantId = existing.id; // device sama scan ulang — jangan duplikat
       } else {
         const participant = await db.orderParticipant.create({
-          data: { orderId: order.id, name, phone: phone || null, token: gid },
+          data: { orderId: order.id, name, phone: phone || linkPhone, token: gid, userId: linkUserId },
         });
         participantId = participant.id;
       }

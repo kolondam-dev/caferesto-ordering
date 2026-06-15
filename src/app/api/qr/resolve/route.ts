@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getGuestId } from "@/lib/guest";
+import { getSession } from "@/lib/auth";
 import { ORDER_STATUS } from "@/lib/constants";
 import { runBookingLifecycle } from "@/lib/lifecycle";
 
@@ -25,7 +26,9 @@ export async function GET(req: NextRequest) {
 
   await runBookingLifecycle(); // kedaluwarsakan draft basi sebelum resolusi
 
-  const gid = await getGuestId();
+  const [gid, session] = await Promise.all([getGuestId(), getSession()]);
+  // Customer yang sudah login dikenali → sapa namanya, lewati isian HP.
+  const viewer = session?.role === "CUSTOMER" ? { name: session.name } : null;
   const [draft, locked] = await Promise.all([
     db.order.findFirst({
       where: { tableId: table.id, source: "QR", status: ORDER_STATUS.DRAFT },
@@ -53,5 +56,6 @@ export async function GET(req: NextRequest) {
     lockedOrder: locked ? { id: locked.id, code: locked.code, status: locked.status } : null,
     myParticipantId: meInDraft?.id ?? null,
     myLockedOrderId: meInLocked ? locked!.id : null,
+    viewer,
   });
 }
