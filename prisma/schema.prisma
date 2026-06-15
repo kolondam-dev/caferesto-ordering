@@ -31,6 +31,7 @@ model User {
   chats        ChatMessage[]
   approvalsRequested ApprovalRequest[] @relation("ApprovalRequester")
   approvalsDecided   ApprovalRequest[] @relation("ApprovalDecider")
+  participations     OrderParticipant[]
 }
 
 // OTP verifikasi WhatsApp untuk login/registrasi customer (mock-ready).
@@ -168,6 +169,10 @@ model OrderParticipant {
   name     String
   phone    String? // opsional — "struk digital dikirim ke sini jika berminat"
   isHost   Boolean     @default(false)
+  // Tautan ke akun customer (terisi bila peserta sudah login / verifikasi WA).
+  // Inilah jembatan agar order jalur QR muncul di riwayat customer.
+  userId   String?
+  user     User?       @relation(fields: [userId], references: [id])
   // Guest id dari cookie. Device yang sama boleh muncul di banyak order
   // (ronde baru / meja lain) — unik hanya di dalam satu order.
   token    String

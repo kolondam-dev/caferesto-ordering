@@ -42,7 +42,9 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     },
     bill: { subtotal, serviceFee, tax, total, settled, deposit, due },
     shares,
-    me: access.participant ? { participantId: access.participant.id, isHost: access.participant.isHost } : null,
+    me: access.participant
+      ? { participantId: access.participant.id, isHost: access.participant.isHost, hasAccount: !!access.participant.userId }
+      : null,
   });
 }
 

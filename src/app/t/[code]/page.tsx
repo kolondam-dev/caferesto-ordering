@@ -14,6 +14,7 @@ type Resolve = {
   lockedOrder: { id: string; code: string; status: string } | null;
   myParticipantId: string | null;
   myLockedOrderId: string | null;
+  viewer: { name: string } | null; // customer yang sudah login (member)
 };
 
 /**
@@ -35,7 +36,10 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
       .then((d) => {
         if (d.myParticipantId && d.order) router.replace(`/o/${d.order.id}`);
         else if (!d.order && d.myLockedOrderId) router.replace(`/o/${d.myLockedOrderId}`);
-        else setData(d);
+        else {
+          if (d.viewer) setName(d.viewer.name); // member: prefill nama, konfirmasi saja
+          setData(d);
+        }
       })
       .catch((e) => setError(e.message));
   }, [code, router]);
@@ -96,10 +100,12 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
           <div className="bg-gradient-to-br from-sunset-500 via-sunset-400 to-gold-400 p-5 text-white">
             <HandWaving size={34} weight="fill" className="mb-1.5" />
             <h1 className="text-xl font-extrabold leading-snug">
-              Halo! Selamat datang di {data.table.name} ✨
+              {data.viewer ? `Halo lagi, ${data.viewer.name}! 👋` : `Halo! Selamat datang di ${data.table.name} ✨`}
             </h1>
             <p className="mt-1 text-sm text-white/90">
-              Pesan langsung dari HP — <b>tanpa aplikasi, tanpa daftar, tanpa antre</b>.
+              {data.viewer
+                ? <>Anda di {data.table.name}. Riwayat & struk otomatis tersimpan ke akun Anda.</>
+                : <>Pesan langsung dari HP — <b>tanpa aplikasi, tanpa daftar, tanpa antre</b>.</>}
             </p>
           </div>
 
@@ -135,14 +141,19 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
 
             <form onSubmit={join} className="space-y-3">
               <div>
-                <label className="mb-1 block text-sm font-bold">Siapa nama panggilanmu?</label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={40} placeholder="cth. Budi" autoFocus />
+                <label className="mb-1 block text-sm font-bold">
+                  {data.viewer ? "Lanjut sebagai" : "Siapa nama panggilanmu?"}
+                </label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={40} placeholder="cth. Budi" autoFocus={!data.viewer} />
               </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-ink/60">No. HP (boleh dikosongkan)</label>
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} placeholder="08xxxxxxxxxx" />
-                <p className="mt-1 text-[11px] text-ink/40">Struk digital Anda dikirim ke sini jika berminat.</p>
-              </div>
+              {/* Member yang sudah login tak perlu isi HP lagi */}
+              {!data.viewer && (
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-ink/60">No. HP (boleh dikosongkan)</label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} placeholder="08xxxxxxxxxx" />
+                  <p className="mt-1 text-[11px] text-ink/40">Struk digital Anda dikirim ke sini jika berminat.</p>
+                </div>
+              )}
               <Turnstile onToken={setTsToken} />
               {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
               <Button type="submit" variant="teal" full disabled={busy || !name.trim() || (TURNSTILE_ENABLED && !tsToken)} className="!py-3 text-base">
@@ -153,17 +164,19 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
           </div>
         </Card>
 
-        {/* Teaser member — opsional, tidak menghalangi */}
-        <Card className="mt-3 flex items-center gap-3 p-4">
-          <Gift size={28} weight="fill" className="shrink-0 text-sunset-500" />
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold">Sering mampir? Jadi member, gratis kok 😉</p>
-            <p className="text-[11px] text-ink/50">Riwayat pesanan tersimpan, booking meja, & promo duluan.</p>
-          </div>
-          <a href={`/login?next=/t/${code}`} className="shrink-0 text-xs font-extrabold text-teal-700 underline">
-            Daftar
-          </a>
-        </Card>
+        {/* Teaser member — opsional, hanya untuk yang belum jadi member */}
+        {!data.viewer && (
+          <Card className="mt-3 flex items-center gap-3 p-4">
+            <Gift size={28} weight="fill" className="shrink-0 text-sunset-500" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold">Sering mampir? Jadi member, gratis kok 😉</p>
+              <p className="text-[11px] text-ink/50">Riwayat pesanan tersimpan, booking meja, & promo duluan.</p>
+            </div>
+            <a href={`/login?next=/t/${code}`} className="shrink-0 text-xs font-extrabold text-teal-700 underline">
+              Daftar
+            </a>
+          </Card>
+        )}
         <p className="mt-3 text-center text-[11px] text-ink/35">
           <a href="/" className="underline">Lihat menu tanpa scan</a>
         </p>

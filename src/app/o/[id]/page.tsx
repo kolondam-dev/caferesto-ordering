@@ -6,10 +6,11 @@ import {
   Minus, Plus, QrCode, Receipt, Trash, WhatsappLogo,
 } from "@phosphor-icons/react";
 import { api } from "@/lib/client";
-import { Badge, Button, Card, Money, Spinner } from "@/components/ui";
+import { Badge, Button, Card, Input, Money, Spinner } from "@/components/ui";
 import MenuCard from "@/components/MenuCard";
 import Sheet from "@/components/Sheet";
 import ConnectionBanner from "@/components/ConnectionBanner";
+import CustomerBottomNav from "@/components/CustomerBottomNav";
 import { formatIDR } from "@/lib/constants";
 
 type Participant = { id: string; name: string; isHost: boolean };
@@ -27,7 +28,7 @@ type OrderData = {
   };
   bill: { subtotal: number; serviceFee: number; tax: number; total: number; settled: number; due: number };
   shares: Share[] | null;
-  me: { participantId: string; isHost: boolean } | null;
+  me: { participantId: string; isHost: boolean; hasAccount: boolean } | null;
 };
 type MenuItemT = {
   id: string; name: string; price: number; available: boolean; description?: string;
@@ -231,6 +232,12 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
           </div>
         </Card>
 
+        {/* Ajakan simpan riwayat — hanya untuk peserta yang belum jadi member,
+            setelah order dikonfirmasi (tidak lagi fase draft). */}
+        {!isDraft && me && !me.hasAccount && order.status !== "CANCELED" && order.status !== "EXPIRED" && (
+          <SaveHistoryCard orderId={id} name={myName ?? ""} onLinked={load} />
+        )}
+
         {/* Fase pembayaran */}
         {isPaying && shares && (
           <Card className="p-4">
@@ -380,7 +387,88 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
           }}
         />
       )}
+
+      {/* Bottom-nav anti-buntu: muncul saat tak ada aksi edit/bayar aktif */}
+      {!isDraft && !isPaying && <CustomerBottomNav />}
     </div>
+  );
+}
+
+/** Ajakan menautkan order ke akun customer via verifikasi WA (struk + riwayat). */
+function SaveHistoryCard({ orderId, name, onLinked }: { orderId: string; name: string; onLinked: () => void }) {
+  const [step, setStep] = useState<"idle" | "phone" | "otp">("idle");
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [devCode, setDevCode] = useState<string | null>(null);
+
+  async function sendOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await api<{ sent: boolean; devCode?: string }>("/api/auth/customer/request", {
+        method: "POST",
+        body: { name: name || "Tamu", phone: phone.trim() },
+      });
+      setDevCode(r.devCode ?? null);
+      setStep("otp");
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verify(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      await api("/api/auth/customer/verify", { method: "POST", body: { phone: phone.trim(), code: code.trim() } });
+      await api(`/api/orders/${orderId}/link`, { method: "POST" });
+      onLinked();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="border-teal-200 bg-teal-50 p-4">
+      <p className="flex items-center gap-2 text-sm font-extrabold text-teal-900">
+        <WhatsappLogo size={18} weight="fill" /> Simpan struk & riwayat?
+      </p>
+      <p className="mt-1 text-xs text-teal-800/80">
+        Verifikasi WhatsApp sekali — struk dikirim ke WA dan order ini tersimpan di riwayat Anda.
+      </p>
+      {step === "idle" && (
+        <Button variant="teal" full className="mt-3" onClick={() => setStep("phone")}>
+          Simpan via WhatsApp
+        </Button>
+      )}
+      {step === "phone" && (
+        <form onSubmit={sendOtp} className="mt-3 space-y-2">
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" maxLength={20} required />
+          {err && <p className="text-xs font-semibold text-red-600">{err}</p>}
+          <Button type="submit" variant="teal" full disabled={busy || !phone.trim()}>
+            {busy ? "Mengirim…" : "Kirim Kode WhatsApp"}
+          </Button>
+        </form>
+      )}
+      {step === "otp" && (
+        <form onSubmit={verify} className="mt-3 space-y-2">
+          {devCode && <p className="text-[11px] text-teal-700">Kode dev: <b>{devCode}</b></p>}
+          <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="6 digit kode" maxLength={8} required />
+          {err && <p className="text-xs font-semibold text-red-600">{err}</p>}
+          <Button type="submit" variant="teal" full disabled={busy || !code.trim()}>
+            {busy ? "Memverifikasi…" : "Verifikasi & Simpan"}
+          </Button>
+        </form>
+      )}
+    </Card>
   );
 }
 
