@@ -30,6 +30,7 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
   const [phone, setPhone] = useState("");
   const [tsToken, setTsToken] = useState("");
   const [busy, setBusy] = useState(false);
+  const [intent, setIntent] = useState<"table" | null>(null); // konfirmasi: benar di meja ini?
 
   useEffect(() => {
     api<Resolve>(`/api/qr/resolve?code=${encodeURIComponent(code)}`)
@@ -91,6 +92,10 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
     );
 
   const firstJoin = !data.order;
+  // Saat memulai order baru, konfirmasi dulu apakah benar duduk di meja ini —
+  // mencegah order "nyangkut" di meja yang salah. Bergabung ke order existing
+  // langsung ke form.
+  const showForm = !firstJoin || intent === "table";
 
   return (
     <Shell>
@@ -139,6 +144,26 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
               </div>
             )}
 
+            {/* Konfirmasi niat: benar di meja ini, atau mau ke kasir? */}
+            {firstJoin && !intent && (
+              <div className="space-y-2">
+                <Button type="button" variant="teal" full className="!py-3 text-base" onClick={() => setIntent("table")}>
+                  Ya, saya duduk di {data.table.name}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => router.push("/")}
+                  className="w-full rounded-xl border border-sunset-200 bg-white py-2.5 text-sm font-semibold text-ink/60"
+                >
+                  Tidak di sini — lihat menu / pesan ke kasir
+                </button>
+                <p className="text-center text-[11px] text-ink/40">
+                  Mau bayar tunai atau bawa pulang? Pilih opsi kedua, lalu tunjukkan kode ke kasir.
+                </p>
+              </div>
+            )}
+
+            {showForm && (
             <form onSubmit={join} className="space-y-3">
               <div>
                 <label className="mb-1 block text-sm font-bold">
@@ -161,6 +186,7 @@ export default function TableScanPage({ params }: { params: Promise<{ code: stri
                 {busy ? "Sebentar ya…" : firstJoin ? "Mulai Pesan" : "Gabung & Pilih Menu"}
               </Button>
             </form>
+            )}
           </div>
         </Card>
 

@@ -172,6 +172,11 @@ type TodayOrder = {
   bill: { total: number };
 };
 
+type HandoffOrder = {
+  id: string; code: string; type: string; customerName?: string | null;
+  items: { nameSnapshot: string; qty: number; price: number; status: string }[];
+};
+
 const CHANNEL_LABEL: Record<string, string> = {
   WALKIN: "Walk-in", SHOPEEFOOD: "ShopeeFood", GOFOOD: "GoFood", WA: "WhatsApp",
 };
@@ -215,6 +220,7 @@ export default function POSPage() {
   const [todayOrders, setTodayOrders] = useState<TodayOrder[]>([]);
   const [boardMode, setBoardMode] = useState<"dinein" | "takeaway">("dinein");
   const [takeaways, setTakeaways] = useState<TakeawayOrder[]>([]);
+  const [handoffs, setHandoffs] = useState<HandoffOrder[]>([]);
   const [newTakeawayOpen, setNewTakeawayOpen] = useState(false);
   const [printerReady, setPrinterReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -232,6 +238,22 @@ export default function POSPage() {
     () => api<{ orders: TakeawayOrder[] }>("/api/orders?board=takeaway").then((d) => setTakeaways(d.orders)).catch(() => {}),
     []
   );
+  const loadHandoffs = useCallback(
+    () => api<{ orders: HandoffOrder[] }>("/api/orders?board=handoff").then((d) => setHandoffs(d.orders)).catch(() => {}),
+    []
+  );
+  async function claimHandoff(orderId: string, tableId?: string) {
+    setBusy(true);
+    try {
+      await api(`/api/orders/${orderId}/claim-handoff`, { method: "POST", body: tableId ? { tableId } : {} });
+      await Promise.all([loadHandoffs(), loadTables(), loadTakeaways()]);
+      await loadOrder(orderId);
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const loadTodayHistory = useCallback(() => {
     const today = new Date().toISOString().slice(0, 10);
     return api<{ orders: TodayOrder[] }>(`/api/orders/history?type=ALL&from=${today}&to=${today}`)
@@ -246,19 +268,21 @@ export default function POSPage() {
     loadTables();
     loadMenu();
     loadTakeaways();
+    loadHandoffs();
     api<{ settings: { printerHost: string } }>("/api/settings")
       .then((d) => setPrinterReady(!!d.settings.printerHost))
       .catch(() => {});
-  }, [loadTables, loadMenu, loadTakeaways]);
+  }, [loadTables, loadMenu, loadTakeaways, loadHandoffs]);
 
-  // Refresh strip meja & papan takeaway berkala (status & progres penyajian)
+  // Refresh strip meja, papan takeaway & order masuk berkala
   useEffect(() => {
     const t = setInterval(() => {
       loadTables();
       loadTakeaways();
+      loadHandoffs();
     }, 10000);
     return () => clearInterval(t);
-  }, [loadTables, loadTakeaways]);
+  }, [loadTables, loadTakeaways, loadHandoffs]);
 
   // Order lunas yang menunggu dibersihkan: pantau progres penyajian live
   const currentId = current?.order.id;
@@ -474,6 +498,9 @@ export default function POSPage() {
       />
       <ValidationQueue onChanged={loadTables} />
       <AttentionQueue />
+      {handoffs.length > 0 && (
+        <HandoffBoard handoffs={handoffs} tables={tables ?? []} busy={busy} onClaim={claimHandoff} />
+      )}
 
       {/* Strip: meja (dine-in) atau papan takeaway */}
       {boardMode === "dinein" ? (
@@ -894,6 +921,70 @@ function NewTakeawaySheet({
         </Button>
       </form>
     </Sheet>
+  );
+}
+
+/** Papan order mandiri pelanggan yang menunggu diproses kasir (handoff). */
+function HandoffBoard({
+  handoffs, tables, busy, onClaim,
+}: {
+  handoffs: HandoffOrder[]; tables: TableT[]; busy: boolean; onClaim: (id: string, tableId?: string) => void;
+}) {
+  return (
+    <Card className="mb-4 border-gold-200 bg-gold-50 p-3">
+      <h2 className="mb-2 flex items-center gap-1.5 text-sm font-extrabold text-gold-800">
+        <ReceiptIcon size={16} weight="fill" /> Order Masuk dari Pelanggan ({handoffs.length})
+      </h2>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {handoffs.map((o) => (
+          <HandoffRow key={o.id} order={o} tables={tables} busy={busy} onClaim={onClaim} />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function HandoffRow({
+  order, tables, busy, onClaim,
+}: {
+  order: HandoffOrder; tables: TableT[]; busy: boolean; onClaim: (id: string, tableId?: string) => void;
+}) {
+  const [tableId, setTableId] = useState("");
+  const openTables = tables.filter((t) => t.status === "OPEN");
+  const active = order.items.filter((i) => i.status !== "CANCELED");
+  const count = active.reduce((s, i) => s + i.qty, 0);
+  const total = active.reduce((s, i) => s + i.price * i.qty, 0);
+  return (
+    <div className="rounded-xl border border-gold-200 bg-white p-2.5">
+      <p className="text-sm font-bold">
+        {order.code}
+        <span className="ml-1.5 font-normal text-ink/50">
+          {order.customerName ?? "Tamu"} · {order.type === "TAKEAWAY" ? "Takeaway" : "Dine-in"}
+        </span>
+      </p>
+      <p className="text-[11px] text-ink/45">{count} item · <Money value={total} /></p>
+      <div className="mt-2 flex gap-2">
+        {order.type === "DINE_IN" && (
+          <select
+            value={tableId}
+            onChange={(e) => setTableId(e.target.value)}
+            className="min-w-0 flex-1 rounded-lg border border-sunset-200 bg-white px-2 py-1.5 text-xs"
+          >
+            <option value="">Pilih meja…</option>
+            {openTables.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        )}
+        <Button
+          className="!py-1.5 text-xs"
+          disabled={busy || (order.type === "DINE_IN" && !tableId)}
+          onClick={() => onClaim(order.id, tableId || undefined)}
+        >
+          Proses
+        </Button>
+      </div>
+    </div>
   );
 }
 

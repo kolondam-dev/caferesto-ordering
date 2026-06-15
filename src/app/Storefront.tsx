@@ -83,6 +83,24 @@ export default function Storefront() {
     }
   }
 
+  // Pesan tanpa login: buat order mandiri → tunjukkan kode ke kasir (bayar tunai/QRIS).
+  async function orderToCashier() {
+    setError("");
+    setSubmitting(true);
+    try {
+      const { orderId } = await api<{ orderId: string }>("/api/orders/self", {
+        method: "POST",
+        body: { items: lines.map((l) => ({ menuItemId: l.item.id, qty: l.qty })), type: orderType },
+      });
+      setCart({});
+      router.push(`/o/${orderId}`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <CustomerShell>
       {/* Hero */}
@@ -186,8 +204,16 @@ export default function Storefront() {
                 <Money value={total} className="text-lg font-extrabold text-sunset-600" />
               </div>
               {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
-              <Button full disabled={submitting || (orderType === "DINE_IN" && !tableId)} onClick={checkout}>
-                {submitting ? "Mengirim…" : "Kirim Pesanan ke Dapur"}
+              {/* Tanpa login: pesan lalu tunjukkan kode ke kasir (bayar tunai/QRIS) */}
+              <Button variant="teal" full disabled={submitting} onClick={orderToCashier}>
+                {submitting ? "Memproses…" : "Pesan & Bayar di Kasir"}
+              </Button>
+              <p className="text-center text-[11px] text-ink/45">
+                Tunjukkan kode ke kasir — meja & pembayaran (tunai/QRIS) diatur kasir.
+              </p>
+              {/* Dine-in mandiri (perlu akun & pilih meja) → langsung ke dapur */}
+              <Button variant="outline" full disabled={submitting || (orderType === "DINE_IN" && !tableId)} onClick={checkout}>
+                {submitting ? "Mengirim…" : "Kirim Langsung ke Dapur"}
               </Button>
             </div>
           </div>

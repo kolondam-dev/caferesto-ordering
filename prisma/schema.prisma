@@ -148,6 +148,9 @@ model Order {
   customerName   String?
   customerPhone  String?
   channel        String? // takeaway: WALKIN|SHOPEEFOOD|GOFOOD|WA
+  // Order mandiri pelanggan yang menunggu diproses kasir (pesan dari HP lalu
+  // tunjukkan kode ke kasir; null = bukan handoff). Kasir menetapkan meja/bayar.
+  handoff        String? // null | "CASHIER"
   depositApplied Int         @default(0) // booking fee yang dikreditkan ke tagihan
   taxPercent     Int         @default(10)
   // Snapshot service fee saat order dibuat (agar tagihan deterministik)
