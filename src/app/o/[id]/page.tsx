@@ -22,6 +22,7 @@ type Share = { participantId: string; name: string; subtotal: number; amount: nu
 type OrderData = {
   order: {
     id: string; code: string; status: string; source: string; splitMode: string | null;
+    handoff?: string | null;
     table?: { name: string; code: string | null } | null;
     items: Item[];
     participants: Participant[];
@@ -67,6 +68,7 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
   const { order, bill, shares, me } = data;
   const isDraft = order.status === "DRAFT";
   const isPaying = order.status === "AWAITING_PAYMENT";
+  const isHandoff = order.handoff === "CASHIER"; // order mandiri, diproses kasir
   const canEdit = isDraft && !!me;
   const myName = order.participants.find((p) => p.id === me?.participantId)?.name;
 
@@ -141,6 +143,14 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
       </header>
 
       <main className="space-y-4 px-4 py-4">
+        {/* Order mandiri: tunjukkan kode ke kasir */}
+        {isHandoff && isDraft && (
+          <Card className="border-gold-200 bg-gold-50 p-4 text-center">
+            <p className="text-sm font-semibold text-gold-900">Tunjukkan kode ini ke kasir untuk pilih meja & bayar (tunai/QRIS):</p>
+            <p className="my-2 text-3xl font-extrabold tracking-[0.2em] text-gold-700">{order.code}</p>
+            <p className="text-xs text-gold-800/70">Pesanan diproses kasir. Anda masih bisa menambah menu selama belum diproses.</p>
+          </Card>
+        )}
         {/* Banner status */}
         {order.status === "AWAITING_VALIDATION" && (
           <Card className="flex items-center gap-3 border-teal-200 bg-teal-50 p-4">
@@ -350,7 +360,7 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
             <Button variant="outline" className="flex-1" onClick={() => setMenuOpen(true)}>
               <Plus size={16} weight="bold" /> Tambah Menu
             </Button>
-            {me!.isHost && (
+            {me!.isHost && !isHandoff && (
               <Button
                 className="flex-1"
                 disabled={order.items.filter((i) => i.status === "DRAFT").length === 0}

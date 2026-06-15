@@ -46,6 +46,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ orders });
   }
 
+  // ?board=handoff → order mandiri pelanggan yang menunggu diproses kasir
+  if (req.nextUrl.searchParams.get("board") === "handoff") {
+    if (!STAFF_ROLES.includes(guard.role))
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const orders = await db.order.findMany({
+      where: { handoff: "CASHIER", status: ORDER_STATUS.DRAFT },
+      orderBy: { createdAt: "asc" },
+      include: { items: { select: { nameSnapshot: true, qty: true, price: true, status: true } } },
+      take: 50,
+    });
+    return NextResponse.json({ orders });
+  }
+
   const status = req.nextUrl.searchParams.get("status") ?? undefined;
   const mineOnly = !STAFF_ROLES.includes(guard.role);
   // Customer melihat order miliknya (customerId) ATAU order jalur QR tempat ia

@@ -26,14 +26,15 @@ export async function resolveOrderAccess(order: {
 }): Promise<OrderAccess> {
   const [session, gid] = await Promise.all([getSession(), getGuestId()]);
 
-  let participant =
-    gid && order.source === "QR"
-      ? await db.orderParticipant.findFirst({ where: { orderId: order.id, token: gid } })
-      : null;
+  // Cari peserta by guest token tanpa membatasi source: order mandiri yang sudah
+  // diproses kasir berubah source ke POS, tapi pelanggan tetap boleh memantaunya.
+  let participant = gid
+    ? await db.orderParticipant.findFirst({ where: { orderId: order.id, token: gid } })
+    : null;
 
   // Customer login yang tertaut sebagai peserta (mis. device baru / cookie guest
   // hilang) tetap boleh melihat ordernya lewat akun.
-  if (!participant && session && order.source === "QR")
+  if (!participant && session)
     participant = await db.orderParticipant.findFirst({ where: { orderId: order.id, userId: session.sub } });
 
   const isStaff = !!session && STAFF_ROLES.includes(session.role);

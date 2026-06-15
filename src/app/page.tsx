@@ -1,14 +1,10 @@
-import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
 import Storefront from "./Storefront";
 
 /**
- * Akses langsung (tanpa scan QR) wajib login customer dulu — supaya tidak ada
- * alur buntu (lihat menu tapi tak bisa checkout). Jalur QR (/t, /o) tetap tanpa
- * login. Staff yang login juga boleh melihat storefront.
+ * Menu publik — siapa pun boleh menelusuri menu tanpa login ("cukup lihat
+ * menu"), dan guest bisa memesan untuk dibayar di kasir. Aksi yang butuh akun
+ * (dine-in checkout sendiri) tetap diarahkan login di Storefront.
  */
-export default async function HomePage() {
-  const session = await getSession();
-  if (!session) redirect("/login?next=/");
+export default function HomePage() {
   return <Storefront />;
 }
