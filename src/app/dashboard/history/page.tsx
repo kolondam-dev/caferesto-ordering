@@ -19,7 +19,7 @@ type HistoryOrder = {
 };
 
 const CHANNEL_LABEL: Record<string, string> = {
-  WALKIN: "Walk-in", SHOPEEFOOD: "ShopeeFood", GOFOOD: "GoFood", WA: "WhatsApp",
+  WALKIN: "Walk-in", DINEIN: "Order tambahan, dibungkus", SHOPEEFOOD: "ShopeeFood", GOFOOD: "GoFood", WA: "WhatsApp",
 };
 
 function todayStr(offsetDays = 0) {

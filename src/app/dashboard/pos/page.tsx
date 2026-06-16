@@ -162,6 +162,7 @@ type TableT = { id: string; name: string; capacity: number; status: string; orde
 type TakeawayOrder = {
   id: string; code: string; status: string; createdAt: string;
   customerName?: string | null; channel?: string | null;
+  table?: { name: string } | null;
   items: { status: string }[];
 };
 
@@ -178,7 +179,7 @@ type HandoffOrder = {
 };
 
 const CHANNEL_LABEL: Record<string, string> = {
-  WALKIN: "Walk-in", SHOPEEFOOD: "ShopeeFood", GOFOOD: "GoFood", WA: "WhatsApp",
+  WALKIN: "Walk-in", DINEIN: "Order tambahan, dibungkus", SHOPEEFOOD: "ShopeeFood", GOFOOD: "GoFood", WA: "WhatsApp",
 };
 
 function elapsedLabel(iso: string) {
@@ -365,7 +366,7 @@ export default function POSPage() {
     }
   }
 
-  async function createTakeaway(payload: { customerName: string; customerPhone: string; channel: string }) {
+  async function createTakeaway(payload: { customerName: string; customerPhone: string; channel: string; tableId?: string }) {
     setBusy(true);
     try {
       const { order } = await api<{ order: { id: string } }>("/api/orders", {
@@ -550,7 +551,7 @@ export default function POSPage() {
               >
                 <span className="text-xs font-extrabold leading-tight">{o.customerName || o.code}</span>
                 <span className={`text-[9px] leading-tight ${active ? "text-white/80" : "text-ink/50"}`}>
-                  {CHANNEL_LABEL[o.channel ?? "WALKIN"] ?? o.channel} · {o.status === "PAID" ? `lunas ${served}/${total}` : "berjalan"} · {elapsedLabel(o.createdAt)}
+                  {CHANNEL_LABEL[o.channel ?? "WALKIN"] ?? o.channel}{o.channel === "DINEIN" && o.table ? ` - ${o.table.name}` : ""} · {o.status === "PAID" ? `lunas ${served}/${total}` : "berjalan"} · {elapsedLabel(o.createdAt)}
                 </span>
               </button>
             );
@@ -861,23 +862,26 @@ export default function POSPage() {
         </Card>
       </div>
 
-      {newTakeawayOpen && <NewTakeawaySheet busy={busy} onClose={() => setNewTakeawayOpen(false)} onCreate={createTakeaway} />}
+      {newTakeawayOpen && <NewTakeawaySheet busy={busy} tables={tables ?? []} onClose={() => setNewTakeawayOpen(false)} onCreate={createTakeaway} />}
     </div>
   );
 }
 
 function NewTakeawaySheet({
-  busy, onClose, onCreate,
+  busy, tables, onClose, onCreate,
 }: {
   busy: boolean;
+  tables: TableT[];
   onClose: () => void;
-  onCreate: (p: { customerName: string; customerPhone: string; channel: string }) => void;
+  onCreate: (p: { customerName: string; customerPhone: string; channel: string; tableId?: string }) => void;
 }) {
   const [customerName, setName] = useState("");
   const [customerPhone, setPhone] = useState("");
   const [channel, setChannel] = useState("WALKIN");
+  const [tableId, setTableId] = useState("");
   const channels = [
     { v: "WALKIN", label: "Walk-in" },
+    { v: "DINEIN", label: "Bungkus tamu di meja" },
     { v: "SHOPEEFOOD", label: "ShopeeFood" },
     { v: "GOFOOD", label: "GoFood" },
     { v: "WA", label: "WhatsApp" },
@@ -887,7 +891,7 @@ function NewTakeawaySheet({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          onCreate({ customerName, customerPhone, channel });
+          onCreate({ customerName, customerPhone, channel, tableId: channel === "DINEIN" ? tableId : undefined });
         }}
         className="space-y-3"
       >
@@ -916,7 +920,27 @@ function NewTakeawaySheet({
             ))}
           </div>
         </div>
-        <Button type="submit" variant="teal" full disabled={busy || !customerName.trim()}>
+        {/* Bungkus tambahan untuk tamu yang sedang dine-in → pilih mejanya */}
+        {channel === "DINEIN" && (
+          <div>
+            <Label>Meja tamu</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {tables.map((t) => (
+                <button
+                  type="button"
+                  key={t.id}
+                  onClick={() => setTableId(t.id)}
+                  className={`rounded-xl border px-2 py-2 text-xs font-bold ${
+                    tableId === t.id ? "border-sunset-500 bg-sunset-500 text-white" : "border-sunset-200 bg-white"
+                  }`}
+                >
+                  {t.name.replace("Meja ", "M")}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <Button type="submit" variant="teal" full disabled={busy || !customerName.trim() || (channel === "DINEIN" && !tableId)}>
           {busy ? "Membuat…" : "Buat Order Takeaway"}
         </Button>
       </form>
