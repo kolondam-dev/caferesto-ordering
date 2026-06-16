@@ -43,7 +43,12 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     bill: { subtotal, serviceFee, tax, total, settled, deposit, due },
     shares,
     me: access.participant
-      ? { participantId: access.participant.id, isHost: access.participant.isHost, hasAccount: !!access.participant.userId }
+      ? {
+          participantId: access.participant.id,
+          isHost: access.participant.isHost,
+          hasAccount: !!access.participant.userId,
+          phone: access.participant.phone ?? null,
+        }
       : null,
   });
 }

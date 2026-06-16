@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     const list = await db.order.findMany({
       where: { type: "TAKEAWAY", status: { in: [ORDER_STATUS.OPEN, ORDER_STATUS.PAID] } },
       orderBy: { createdAt: "desc" },
-      include: { items: { select: { status: true } } },
+      include: { items: { select: { status: true } }, table: { select: { name: true } } },
       take: 50,
     });
     // Sembunyikan takeaway yang sudah lunas & seluruh itemnya tersaji (selesai)
@@ -123,6 +123,9 @@ export async function POST(req: NextRequest) {
   }
 
   const type = body.type === "TAKEAWAY" ? "TAKEAWAY" : "DINE_IN";
+  const CHANNELS = ["WALKIN", "DINEIN", "SHOPEEFOOD", "GOFOOD", "WA"];
+  const channel = type === "TAKEAWAY" && CHANNELS.includes(body.channel) ? body.channel : type === "TAKEAWAY" ? "WALKIN" : null;
+
   let tableId: string | null = null;
   if (type === "DINE_IN") {
     const table = await db.table.findUnique({ where: { id: body.tableId ?? "" } });
@@ -132,10 +135,12 @@ export async function POST(req: NextRequest) {
     if (table.status === TABLE_STATUS.BOOKED && !STAFF_ROLES.includes(guard.role))
       return NextResponse.json({ error: "Meja sedang dibooking" }, { status: 409 });
     tableId = table.id;
+  } else if (channel === "DINEIN" && body.tableId) {
+    // Takeaway "order tambahan dibungkus" untuk tamu yang sedang dine-in:
+    // simpan referensi meja asal tanpa menduduki/menahan meja.
+    const table = await db.table.findUnique({ where: { id: body.tableId } });
+    if (table) tableId = table.id;
   }
-
-  const CHANNELS = ["WALKIN", "SHOPEEFOOD", "GOFOOD", "WA"];
-  const channel = type === "TAKEAWAY" && CHANNELS.includes(body.channel) ? body.channel : type === "TAKEAWAY" ? "WALKIN" : null;
   const order = await db.order.create({
     data: {
       code: shortCode("ORD"),
@@ -150,6 +155,8 @@ export async function POST(req: NextRequest) {
       serviceFeeValue: settings.serviceFeeEnabled ? settings.serviceFeeValue : 0,
     },
   });
-  if (tableId) await db.table.update({ where: { id: tableId }, data: { status: TABLE_STATUS.OCCUPIED } });
+  // Hanya dine-in murni yang menduduki meja; takeaway "dibungkus dari meja"
+  // hanya menyimpan referensi (meja tetap pada status dine-in tamu).
+  if (tableId && type === "DINE_IN") await db.table.update({ where: { id: tableId }, data: { status: TABLE_STATUS.OCCUPIED } });
   return NextResponse.json({ order }, { status: 201 });
 }
