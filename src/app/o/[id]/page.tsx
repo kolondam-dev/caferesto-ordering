@@ -29,7 +29,7 @@ type OrderData = {
   };
   bill: { subtotal: number; serviceFee: number; tax: number; total: number; settled: number; due: number };
   shares: Share[] | null;
-  me: { participantId: string; isHost: boolean; hasAccount: boolean } | null;
+  me: { participantId: string; isHost: boolean; hasAccount: boolean; phone: string | null } | null;
 };
 type MenuItemT = {
   id: string; name: string; price: number; available: boolean; description?: string;
@@ -245,7 +245,7 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
         {/* Ajakan simpan riwayat — hanya untuk peserta yang belum jadi member,
             setelah order dikonfirmasi (tidak lagi fase draft). */}
         {!isDraft && me && !me.hasAccount && order.status !== "CANCELED" && order.status !== "EXPIRED" && (
-          <SaveHistoryCard orderId={id} name={myName ?? ""} onLinked={load} />
+          <SaveHistoryCard orderId={id} name={myName ?? ""} initialPhone={me.phone ?? ""} onLinked={load} />
         )}
 
         {/* Fase pembayaran */}
@@ -406,16 +406,22 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
 }
 
 /** Ajakan menautkan order ke akun customer via verifikasi WA (struk + riwayat). */
-function SaveHistoryCard({ orderId, name, onLinked }: { orderId: string; name: string; onLinked: () => void }) {
+function SaveHistoryCard({
+  orderId, name, initialPhone, onLinked,
+}: {
+  orderId: string; name: string; initialPhone: string; onLinked: () => void;
+}) {
   const [step, setStep] = useState<"idle" | "phone" | "otp">("idle");
-  const [phone, setPhone] = useState("");
+  // Bila nomor sudah diberikan di awal (saat scan/join), tak perlu diminta lagi.
+  const [phone, setPhone] = useState(initialPhone);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [devCode, setDevCode] = useState<string | null>(null);
+  const hasPhone = !!initialPhone.trim();
 
-  async function sendOtp(e: React.FormEvent) {
-    e.preventDefault();
+  async function sendOtp(e?: React.FormEvent) {
+    e?.preventDefault();
     setBusy(true);
     setErr("");
     try {
@@ -456,9 +462,16 @@ function SaveHistoryCard({ orderId, name, onLinked }: { orderId: string; name: s
         Verifikasi WhatsApp sekali — struk dikirim ke WA dan order ini tersimpan di riwayat Anda.
       </p>
       {step === "idle" && (
-        <Button variant="teal" full className="mt-3" onClick={() => setStep("phone")}>
-          Simpan via WhatsApp
-        </Button>
+        hasPhone ? (
+          // Nomor sudah ada dari awal — langsung kirim kode, tak perlu mengetik lagi.
+          <Button variant="teal" full className="mt-3" disabled={busy} onClick={() => sendOtp()}>
+            {busy ? "Mengirim…" : `Kirim kode ke ${phone}`}
+          </Button>
+        ) : (
+          <Button variant="teal" full className="mt-3" onClick={() => setStep("phone")}>
+            Simpan via WhatsApp
+          </Button>
+        )
       )}
       {step === "phone" && (
         <form onSubmit={sendOtp} className="mt-3 space-y-2">

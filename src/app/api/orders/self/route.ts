@@ -7,14 +7,12 @@ import { getSession } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { shortCode } from "@/lib/code";
 import { ORDER_STATUS, ITEM_STATUS } from "@/lib/constants";
-import { verifyTurnstile, TURNSTILE_ERROR } from "@/lib/turnstile";
 
 const schema = z.object({
   items: z.array(z.object({ menuItemId: z.string(), qty: z.number().int().min(1).max(99) })).min(1),
   type: z.enum(["DINE_IN", "TAKEAWAY"]).default("DINE_IN"),
   customerName: z.string().max(40).optional(),
   customerPhone: z.string().max(20).optional(),
-  turnstileToken: z.string().optional(),
 });
 
 /**
@@ -24,9 +22,8 @@ const schema = z.object({
  * QR meja padahal tak duduk di situ".
  */
 async function handlePost(req: NextRequest) {
+  // Tanpa Turnstile di titik pesan: captcha cukup di pintu masuk (scan QR / login).
   const raw = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!(await verifyTurnstile(raw.turnstileToken as string | undefined)))
-    return NextResponse.json({ error: TURNSTILE_ERROR }, { status: 403 });
   const parsed = schema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
   const { items, type, customerName, customerPhone } = parsed.data;

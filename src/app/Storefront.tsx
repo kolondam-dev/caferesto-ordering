@@ -8,11 +8,9 @@ import { Button, Money, Spinner, Empty } from "@/components/ui";
 import MenuCard, { type MenuCardItem } from "@/components/MenuCard";
 import Sheet from "@/components/Sheet";
 import CustomerShell from "@/components/CustomerShell";
-import Turnstile, { TURNSTILE_ENABLED } from "@/components/Turnstile";
 
 type MenuItem = MenuCardItem;
 type Category = { id: string; name: string; items: MenuItem[] };
-type TableT = { id: string; name: string; capacity: number; status: string };
 type CartLine = { item: MenuItem; qty: number };
 
 export default function Storefront() {
@@ -21,16 +19,12 @@ export default function Storefront() {
   const [activeCat, setActiveCat] = useState<string>("all");
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [cartOpen, setCartOpen] = useState(false);
-  const [tables, setTables] = useState<TableT[]>([]);
   const [orderType, setOrderType] = useState<"DINE_IN" | "TAKEAWAY">("DINE_IN");
-  const [tableId, setTableId] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [tsToken, setTsToken] = useState(""); // Turnstile untuk order mandiri (guest)
 
   useEffect(() => {
     api<{ categories: Category[] }>("/api/menu").then((d) => setCategories(d.categories));
-    api<{ tables: TableT[] }>("/api/tables").then((d) => setTables(d.tables)).catch(() => {});
   }, []);
 
   const lines = Object.values(cart);
@@ -57,35 +51,8 @@ export default function Storefront() {
     });
   }
 
-  async function checkout() {
-    setError("");
-    setSubmitting(true);
-    try {
-      const { user } = await api<{ user: unknown }>("/api/auth/me");
-      if (!user) {
-        router.push("/login?next=/");
-        return;
-      }
-      const { order } = await api<{ order: { id: string } }>("/api/orders", {
-        method: "POST",
-        body: orderType === "DINE_IN" ? { type: "DINE_IN", tableId } : { type: "TAKEAWAY" },
-      });
-      await api(`/api/orders/${order.id}/items`, {
-        method: "POST",
-        body: { items: lines.map((l) => ({ menuItemId: l.item.id, qty: l.qty })) },
-      });
-      // Checkout customer = konfirmasi → langsung kirim ke dapur
-      await api(`/api/orders/${order.id}/send-kitchen`, { method: "POST" });
-      setCart({});
-      router.push(`/order/${order.id}`);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  // Pesan tanpa login: buat order mandiri → tunjukkan kode ke kasir (bayar tunai/QRIS).
+  // Pelanggan dari menu publik selalu memesan untuk diproses kasir (tidak ada
+  // jalur "kirim langsung ke dapur" — itu hanya lewat QR meja atau POS kasir).
   async function orderToCashier() {
     setError("");
     setSubmitting(true);
@@ -95,7 +62,6 @@ export default function Storefront() {
         body: {
           items: lines.map((l) => ({ menuItemId: l.item.id, qty: l.qty })),
           type: orderType,
-          turnstileToken: tsToken || undefined,
         },
       });
       setCart({});
@@ -183,45 +149,23 @@ export default function Storefront() {
             <div className="mt-4 space-y-3">
               <div className="flex gap-2">
                 <Button variant={orderType === "DINE_IN" ? "primary" : "outline"} onClick={() => setOrderType("DINE_IN")} className="flex-1">
-                  Dine-in
+                  Makan di tempat
                 </Button>
                 <Button variant={orderType === "TAKEAWAY" ? "primary" : "outline"} onClick={() => setOrderType("TAKEAWAY")} className="flex-1">
-                  Takeaway
+                  Dibungkus
                 </Button>
               </div>
-              {orderType === "DINE_IN" && (
-                <div className="grid grid-cols-4 gap-2">
-                  {tables.map((t) => (
-                    <button
-                      key={t.id}
-                      disabled={t.status !== "OPEN"}
-                      onClick={() => setTableId(t.id)}
-                      className={`rounded-xl border px-2 py-2 text-xs font-bold disabled:opacity-30 ${
-                        tableId === t.id ? "border-sunset-500 bg-sunset-500 text-white" : "border-sunset-200 bg-white"
-                      }`}
-                    >
-                      {t.name.replace("Meja ", "M")}
-                    </button>
-                  ))}
-                </div>
-              )}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-ink/60">Subtotal (belum pajak)</span>
                 <Money value={total} className="text-lg font-extrabold text-sunset-600" />
               </div>
               {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
-              {/* Tanpa login: pesan lalu tunjukkan kode ke kasir (bayar tunai/QRIS) */}
-              <Turnstile onToken={setTsToken} />
-              <Button variant="teal" full disabled={submitting || (TURNSTILE_ENABLED && !tsToken)} onClick={orderToCashier}>
+              <Button variant="teal" full disabled={submitting} onClick={orderToCashier}>
                 {submitting ? "Memproses…" : "Pesan & Bayar di Kasir"}
               </Button>
               <p className="text-center text-[11px] text-ink/45">
                 Tunjukkan kode ke kasir — meja & pembayaran (tunai/QRIS) diatur kasir.
               </p>
-              {/* Dine-in mandiri (perlu akun & pilih meja) → langsung ke dapur */}
-              <Button variant="outline" full disabled={submitting || (orderType === "DINE_IN" && !tableId)} onClick={checkout}>
-                {submitting ? "Mengirim…" : "Kirim Langsung ke Dapur"}
-              </Button>
             </div>
           </div>
         </Sheet>
