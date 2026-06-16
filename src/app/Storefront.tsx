@@ -8,6 +8,7 @@ import { Button, Money, Spinner, Empty } from "@/components/ui";
 import MenuCard, { type MenuCardItem } from "@/components/MenuCard";
 import Sheet from "@/components/Sheet";
 import CustomerShell from "@/components/CustomerShell";
+import Turnstile, { TURNSTILE_ENABLED } from "@/components/Turnstile";
 
 type MenuItem = MenuCardItem;
 type Category = { id: string; name: string; items: MenuItem[] };
@@ -25,6 +26,7 @@ export default function Storefront() {
   const [tableId, setTableId] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [tsToken, setTsToken] = useState(""); // Turnstile untuk order mandiri (guest)
 
   useEffect(() => {
     api<{ categories: Category[] }>("/api/menu").then((d) => setCategories(d.categories));
@@ -90,7 +92,11 @@ export default function Storefront() {
     try {
       const { orderId } = await api<{ orderId: string }>("/api/orders/self", {
         method: "POST",
-        body: { items: lines.map((l) => ({ menuItemId: l.item.id, qty: l.qty })), type: orderType },
+        body: {
+          items: lines.map((l) => ({ menuItemId: l.item.id, qty: l.qty })),
+          type: orderType,
+          turnstileToken: tsToken || undefined,
+        },
       });
       setCart({});
       router.push(`/o/${orderId}`);
@@ -205,7 +211,8 @@ export default function Storefront() {
               </div>
               {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
               {/* Tanpa login: pesan lalu tunjukkan kode ke kasir (bayar tunai/QRIS) */}
-              <Button variant="teal" full disabled={submitting} onClick={orderToCashier}>
+              <Turnstile onToken={setTsToken} />
+              <Button variant="teal" full disabled={submitting || (TURNSTILE_ENABLED && !tsToken)} onClick={orderToCashier}>
                 {submitting ? "Memproses…" : "Pesan & Bayar di Kasir"}
               </Button>
               <p className="text-center text-[11px] text-ink/45">
