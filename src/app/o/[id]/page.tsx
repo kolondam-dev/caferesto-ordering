@@ -353,9 +353,9 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
         )}
       </main>
 
-      {/* Aksi bawah (fase draft) */}
+      {/* Aksi bawah (fase draft) — di atas bottom-nav di mobile */}
       {canEdit && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-sunset-100 bg-white/95 p-3 backdrop-blur">
+        <div className="fixed inset-x-0 bottom-14 z-40 border-t border-sunset-100 bg-white/95 p-3 backdrop-blur md:bottom-0">
           <div className="mx-auto flex max-w-screen-md gap-2">
             <Button variant="outline" className="flex-1" onClick={() => setMenuOpen(true)}>
               <Plus size={16} weight="bold" /> Tambah Menu
@@ -398,8 +398,9 @@ export default function CollabOrderPage({ params }: { params: Promise<{ id: stri
         />
       )}
 
-      {/* Bottom-nav anti-buntu: muncul saat tak ada aksi edit/bayar aktif */}
-      {!isDraft && !isPaying && <CustomerBottomNav />}
+      {/* Bottom-nav customer selalu tersedia (member bisa ke menu/riwayat/akun
+          kapan saja); saat fase draft, action bar berada tepat di atasnya. */}
+      <CustomerBottomNav />
     </div>
   );
 }
