@@ -104,21 +104,18 @@ export async function enterKitchen(orderId: string) {
   await db.$transaction(tx);
 }
 
-/** Setelah semua item tersaji, order QR ditutup dan meja dibebaskan. */
+/** Setelah semua item tersaji, order QR ditandai lunas. Meja TIDAK otomatis
+ * dibebaskan — kasir menutup sesi manual (Tutup Sesi) agar tidak ada meja yang
+ * re-open mendadak saat order lain/ronde baru masih berjalan. */
 export async function completeIfAllServed(orderId: string) {
   const order = await db.order.findUnique({ where: { id: orderId }, include: { items: true } });
   if (!order || order.status !== ORDER_STATUS.IN_KITCHEN) return false;
   const active = order.items.filter((i) => i.status !== ITEM_STATUS.CANCELED);
   if (active.length === 0 || !active.every((i) => i.status === ITEM_STATUS.SERVED)) return false;
 
-  const tx = [
-    db.order.update({
-      where: { id: orderId },
-      data: { status: ORDER_STATUS.PAID, closedAt: new Date() },
-    }),
-  ];
-  if (order.tableId)
-    tx.push(db.table.update({ where: { id: order.tableId }, data: { status: TABLE_STATUS.OPEN } }) as never);
-  await db.$transaction(tx);
+  await db.order.update({
+    where: { id: orderId },
+    data: { status: ORDER_STATUS.PAID, closedAt: new Date() },
+  });
   return true;
 }

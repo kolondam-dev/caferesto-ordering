@@ -130,8 +130,15 @@ export async function POST(req: NextRequest) {
   if (type === "DINE_IN") {
     const table = await db.table.findUnique({ where: { id: body.tableId ?? "" } });
     if (!table) return NextResponse.json({ error: "Pilih meja untuk dine-in" }, { status: 400 });
-    const existing = await db.order.findFirst({ where: { tableId: table.id, status: ORDER_STATUS.OPEN } });
-    if (existing) return NextResponse.json({ order: existing });
+    // Order berjalan di meja: OPEN bisa dilanjutkan; jalur QR (AWAITING_*/IN_KITCHEN)
+    // sedang diproses → cegah order kedua "berebut" meja yang sama.
+    const running = await db.order.findFirst({
+      where: { tableId: table.id, status: { in: [ORDER_STATUS.OPEN, ORDER_STATUS.AWAITING_PAYMENT, ORDER_STATUS.AWAITING_VALIDATION, ORDER_STATUS.IN_KITCHEN] } },
+      orderBy: { createdAt: "desc" },
+    });
+    if (running?.status === ORDER_STATUS.OPEN) return NextResponse.json({ order: running });
+    if (running)
+      return NextResponse.json({ error: "Meja sedang memproses pesanan (QR). Tunggu selesai atau tutup sesi dulu." }, { status: 409 });
     if (table.status === TABLE_STATUS.BOOKED && !STAFF_ROLES.includes(guard.role))
       return NextResponse.json({ error: "Meja sedang dibooking" }, { status: 409 });
     tableId = table.id;
