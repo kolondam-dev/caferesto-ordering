@@ -334,7 +334,7 @@ export default function POSPage() {
 
   /** Kasir membebaskan meja setelah memastikan semua pesanan tersaji. */
   async function clearTable(orderId: string, allServed: boolean) {
-    if (!allServed && !confirm("Masih ada pesanan yang belum tersaji. Tetap bersihkan meja?")) return;
+    if (!allServed && !confirm("Masih ada pesanan yang belum tersaji. Tetap tutup sesi meja?")) return;
     setBusy(true);
     setMsg("");
     try {
@@ -731,8 +731,11 @@ export default function POSPage() {
                 const active = previewLive.orders[0];
                 const openOrder = active?.status === "OPEN" ? active : null;
                 const paidOrder = active?.status === "PAID" ? active : null;
-                const served = paidOrder ? paidOrder.items.filter((i) => i.status === "SERVED").length : 0;
-                const total = paidOrder ? paidOrder.items.filter((i) => i.status !== "CANCELED").length : 0;
+                // Order QR yang sedang diproses dapur / menunggu validasi kasir.
+                const inProgress = active && (active.status === "IN_KITCHEN" || active.status === "AWAITING_VALIDATION") ? active : null;
+                const progressOrder = paidOrder ?? inProgress;
+                const served = progressOrder ? progressOrder.items.filter((i) => i.status === "SERVED").length : 0;
+                const total = progressOrder ? progressOrder.items.filter((i) => i.status !== "CANCELED").length : 0;
                 const allServed = total > 0 && served === total;
                 return (
                   <div className="mt-4 space-y-2">
@@ -740,6 +743,17 @@ export default function POSPage() {
                       <Button variant="teal" full onClick={() => continueOrder(openOrder.id)} disabled={busy}>
                         Lanjutkan Order Berjalan
                       </Button>
+                    ) : inProgress ? (
+                      <>
+                        <div className="rounded-xl bg-gold-50 p-2.5 text-center text-xs font-semibold text-gold-900">
+                          {inProgress.status === "AWAITING_VALIDATION"
+                            ? "Pesanan QR lunas — menunggu validasi kasir"
+                            : `Pesanan QR di dapur · ${served}/${total} tersaji — menunggu diantar`}
+                        </div>
+                        <p className="text-center text-[11px] text-ink/45">
+                          Sesi ditutup otomatis-siap setelah semua tersaji (lunas), lalu tekan Tutup Sesi.
+                        </p>
+                      </>
                     ) : paidOrder ? (
                       <>
                         <div className={`rounded-xl p-2.5 text-center text-xs font-semibold ${allServed ? "bg-emerald-50 text-emerald-800" : "bg-gold-50 text-gold-900"}`}>
@@ -747,7 +761,7 @@ export default function POSPage() {
                           {!allServed && " — tunggu semua diantar"}
                         </div>
                         <Button variant={allServed ? "teal" : "outline"} full onClick={() => clearTable(paidOrder.id, allServed)} disabled={busy}>
-                          Bersihkan Meja
+                          Tutup Sesi
                         </Button>
                         <Button full onClick={() => openNewOrder(previewLive)} disabled={busy}>
                           <Plus size={16} /> Order Lagi (ronde baru)
@@ -833,10 +847,10 @@ export default function POSPage() {
                   <div className="mt-3 space-y-2">
                     <div className={`rounded-xl p-2.5 text-center text-xs font-semibold ${allServed ? "bg-emerald-50 text-emerald-800" : "bg-gold-50 text-gold-900"}`}>
                       Lunas · {served}/{active.length} pesanan tersaji
-                      {!allServed && " — tunggu semua diantar sebelum bersihkan"}
+                      {!allServed && " — tunggu semua diantar sebelum tutup sesi"}
                     </div>
                     <Button variant={allServed ? "teal" : "outline"} full onClick={() => clearTable(current.order.id, allServed)} disabled={busy}>
-                      Bersihkan Meja
+                      Tutup Sesi
                     </Button>
                   </div>
                 );

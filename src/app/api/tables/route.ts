@@ -14,10 +14,11 @@ export async function GET() {
         orderBy: { scheduledAt: "asc" },
         take: 1,
       },
-      // Order aktif = OPEN (berjalan) atau PAID (lunas, menunggu dibersihkan kasir).
-      // Sertakan status item untuk progres penyajian (X/Y tersaji).
+      // Order aktif di meja: OPEN/PAID (jalur POS) atau IN_KITCHEN/
+      // AWAITING_VALIDATION (jalur QR pay-first) — agar pesanan QR yang sedang
+      // diproses tetap terlihat kasir (progres X/Y), tidak "nyangkut".
       orders: {
-        where: { status: { in: ["OPEN", "PAID"] } },
+        where: { status: { in: ["OPEN", "PAID", "IN_KITCHEN", "AWAITING_VALIDATION"] } },
         orderBy: { createdAt: "desc" },
         take: 1,
         select: { id: true, code: true, status: true, createdAt: true, items: { select: { status: true } } },

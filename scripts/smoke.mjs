@@ -119,8 +119,13 @@ for (const item of r.data.items) {
 }
 r = await guestA(`/api/orders/${orderId}`);
 ok(r.data.order.status === "PAID", "semua tersaji → order selesai (PAID)");
+// Meja TIDAK auto-open: tetap occupied sampai kasir menutup sesi (Tutup Sesi).
 r = await anon("/api/tables");
-ok(r.data.tables.find((t) => t.id === tableQR.id).status === "OPEN", "meja kembali OPEN");
+ok(r.data.tables.find((t) => t.id === tableQR.id).status === "OCCUPIED", "meja tetap occupied sampai sesi ditutup");
+r = await cashier(`/api/orders/${orderId}/clear-table`, { method: "POST" });
+ok(r.status === 200 && r.data.cleared === true, "kasir tutup sesi order QR");
+r = await anon("/api/tables");
+ok(r.data.tables.find((t) => t.id === tableQR.id).status === "OPEN", "meja OPEN setelah sesi ditutup");
 
 // ── Jalur POS pay-later (dengan langkah validasi kirim ke dapur) ─
 r = await cashier("/api/orders", { method: "POST", body: { type: "DINE_IN", tableId: tablePOS.id } });
